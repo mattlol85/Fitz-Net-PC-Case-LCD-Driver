@@ -23,6 +23,9 @@ VIDEO_SUFFIXES = {".mp4", ".mkv", ".mov", ".avi", ".webm", ".m4v", ".wmv", ".flv
 
 SUPPORTED_SUFFIXES = IMAGE_SUFFIXES | ANIMATED_SUFFIXES | VIDEO_SUFFIXES
 
+#: How long close() waits for the decode thread before giving up on it.
+CLOSE_TIMEOUT = 3.0
+
 
 class MediaError(Exception):
     """Raised when a media file cannot be opened or decoded."""
@@ -155,7 +158,8 @@ class VideoSource(MediaSource):
         self._current: Image.Image | None = None
         self._current_pts = -1.0
         self._stop = threading.Event()
-        self._seek_to: float | None = 0.0
+        self._closed = threading.Event()
+        self._thread: threading.Thread | None = None
 
         try:
             container = av.open(str(self.path))
@@ -208,7 +212,7 @@ class VideoSource(MediaSource):
                     # speed is independent of how fast the panel is running.
                     rate = float(self._stream.average_rate or 30)
                     self._stop.wait(1.0 / max(1.0, rate))
-                if not self._loop:
+                if not self._loop or self._closed.is_set():
                     return
                 self._container.seek(0)
             except Exception as exc:  # noqa: BLE001 - a bad file must not kill the app
@@ -216,7 +220,27 @@ class VideoSource(MediaSource):
                 return
 
     def close(self) -> None:
+        """Stop decoding and release the container.
+
+        The decode thread must be joined *before* the container is closed:
+        closing it while a decode is in flight frees buffers the thread is still
+        reading and segfaults the interpreter. If the thread will not stop, the
+        container is deliberately leaked rather than freed underneath it.
+        """
         self._stop.set()
+        self._closed.set()
+
+        thread = self._thread
+        if thread is not None and thread is not threading.current_thread() and thread.is_alive():
+            thread.join(timeout=CLOSE_TIMEOUT)
+            if thread.is_alive():
+                log.warning(
+                    "decode thread for %s did not stop; leaking the container to "
+                    "avoid freeing memory it is still reading",
+                    self.path.name,
+                )
+                return
+
         try:
             self._container.close()
         except Exception as exc:  # noqa: BLE001 - closing must never raise
