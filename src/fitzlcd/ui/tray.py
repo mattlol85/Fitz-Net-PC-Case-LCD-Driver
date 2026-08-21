@@ -33,6 +33,8 @@ class TrayIcon(QSystemTrayIcon):
         on_show: Callable[[], None],
         on_pause: Callable[[bool], None],
         on_quit: Callable[[], None],
+        on_next: Callable[[], None] | None = None,
+        on_previous: Callable[[], None] | None = None,
         parent=None,
     ) -> None:
         super().__init__(make_icon(), parent)
@@ -46,6 +48,15 @@ class TrayIcon(QSystemTrayIcon):
         menu.addAction(show)
 
         self.scene_menu = menu.addMenu("Scene")
+
+        if on_previous is not None:
+            previous = QAction("Previous scene", menu)
+            previous.triggered.connect(lambda: on_previous())
+            menu.addAction(previous)
+        if on_next is not None:
+            following = QAction("Next scene", menu)
+            following.triggered.connect(lambda: on_next())
+            menu.addAction(following)
 
         self.pause_action = QAction("Pause", menu, checkable=True)
         self.pause_action.toggled.connect(on_pause)

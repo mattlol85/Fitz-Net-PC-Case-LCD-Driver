@@ -44,6 +44,7 @@ class EngineStats:
     address: str = ""
     width: int = 0
     height: int = 0
+    rotation: int = 0
     fps: float = 0.0
     target_fps: int = 0
     bytes_per_second: float = 0.0
@@ -63,6 +64,10 @@ class EngineStats:
 @dataclass
 class EngineConfig:
     panel: str | None = "auto"
+    #: How the panel is physically mounted, in degrees counter-clockwise.
+    #: Scenes are composed in what the viewer sees, so this changes the frame
+    #: geometry as well as the encode transform.
+    rotation: int = 0
     quality: int = 90
     max_fps: int | None = None  # overrides the panel's own cap when lower
     reconnect: bool = True
@@ -127,6 +132,22 @@ class RenderEngine:
         self._update_stats(scene_name=scene.name if scene else "")
         self._wake.set()
 
+    def set_rotation(self, degrees: int) -> None:
+        """Change the mounting orientation and recompose at the new geometry."""
+        degrees %= 360
+        if degrees % 90:
+            raise ValueError(f"rotation must be a multiple of 90, got {degrees}")
+        if degrees == self.config.rotation:
+            return
+        with self._lock:
+            self.config.rotation = degrees
+            # The frame size changes, so the cached compositor and the
+            # last-sent frame are both stale.
+            self._compositor = None
+            self._last_payload = None
+        self._publish_caps()
+        self._wake.set()
+
     def set_paused(self, paused: bool) -> None:
         self._paused = paused
         self._wake.set()
@@ -189,7 +210,7 @@ class RenderEngine:
         if scene is None or panel is None or self._paused:
             return 0.25  # idle tick: stay responsive without burning CPU
 
-        caps = panel.caps
+        caps = panel.caps.rotated(self.config.rotation)
         target_fps = self._target_fps(scene, caps.max_fps)
         interval = 1.0 / max(1, target_fps)
 
@@ -248,20 +269,29 @@ class RenderEngine:
             return False
 
         self._panel = panel
-        caps = panel.caps
         self._last_payload = None
+        self._compositor = None
+        caps = panel.caps
         self._update_stats(
             connected=True,
             panel_label=handle.label,
             address=handle.address,
             model=caps.model,
             firmware=caps.firmware,
-            width=caps.width,
-            height=caps.height,
             last_error="",
         )
+        self._publish_caps()
         log.info("engine connected to %s", handle)
         return True
+
+    def _publish_caps(self) -> None:
+        """Publish the geometry scenes are composed in, not the panel's native one."""
+        panel = self._panel
+        if panel is None or not panel.is_open:
+            self._update_stats(rotation=self.config.rotation)
+            return
+        caps = panel.caps.rotated(self.config.rotation)
+        self._update_stats(width=caps.width, height=caps.height, rotation=self.config.rotation)
 
     def _disconnect(self, error: str = "") -> None:
         panel, self._panel = self._panel, None

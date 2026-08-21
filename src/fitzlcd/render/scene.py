@@ -23,6 +23,9 @@ if TYPE_CHECKING:
 
 SCHEMA_VERSION = 1
 
+#: Values for a layer's ``orientation`` filter.
+ORIENTATIONS = ("any", "landscape", "portrait")
+
 
 class SceneError(Exception):
     """Raised when a scene document is malformed."""
@@ -74,12 +77,33 @@ class Layer(ABC):
     FIELDS: ClassVar[tuple[Field, ...]] = (
         Field("name", "text", "Name", ""),
         Field("visible", "bool", "Visible", True),
+        Field(
+            "orientation",
+            "choice",
+            "Show in",
+            "any",
+            choices=ORIENTATIONS,
+            help="Restrict this layer to one panel orientation",
+        ),
         Field("opacity", "number", "Opacity", 1.0, minimum=0.0, maximum=1.0),
     )
 
     name: str = ""
     visible: bool = True
+    orientation: str = "any"
     opacity: float = 1.0
+
+    def applies_to(self, size: tuple[int, int]) -> bool:
+        """Whether this layer should be drawn at this frame geometry.
+
+        A scene that needs genuinely different content when the panel is turned
+        on its side can carry both versions and tag each one, rather than being
+        duplicated wholesale.
+        """
+        if self.orientation == "any":
+            return True
+        portrait = size[1] > size[0]
+        return self.orientation == ("portrait" if portrait else "landscape")
 
     @abstractmethod
     def draw(self, canvas: Image.Image, ctx: RenderContext) -> None:

@@ -30,6 +30,12 @@ def _build_parser() -> argparse.ArgumentParser:
         help="panel selector: 'auto', 'virtual', or an address like COM5",
     )
     parser.add_argument("--scene", help="name of the scene to activate on start")
+    parser.add_argument(
+        "--rotation",
+        type=int,
+        choices=(0, 90, 180, 270),
+        help="how the panel is mounted, in degrees counter-clockwise",
+    )
     parser.add_argument("--headless", action="store_true", help="run without the GUI")
     parser.add_argument("--quality", type=int, help="JPEG quality (1-100)")
     parser.add_argument("--max-fps", type=int, help="clamp the frame rate")
@@ -73,6 +79,7 @@ def run_headless(args: argparse.Namespace) -> int:
     engine = RenderEngine(
         EngineConfig(
             panel=args.panel or config.panel,
+            rotation=args.rotation if args.rotation is not None else config.rotation,
             quality=args.quality or config.quality,
             max_fps=args.max_fps or config.max_fps,
         ),

@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import logging
 
-from PySide6.QtCore import Qt, Signal
+from PySide6.QtCore import Qt, QTimer, Signal
 from PySide6.QtWidgets import (
     QAbstractItemView,
     QCheckBox,
@@ -25,6 +25,7 @@ from PySide6.QtWidgets import (
     QMessageBox,
     QPushButton,
     QSlider,
+    QSpinBox,
     QSplitter,
     QVBoxLayout,
     QWidget,
@@ -37,6 +38,9 @@ from fitzlcd.ui.preview import PreviewWidget
 from fitzlcd.ui.properties import PropertiesPane
 
 log = logging.getLogger(__name__)
+
+#: Mounting orientations offered in the UI, in degrees counter-clockwise.
+ROTATIONS = (0, 90, 180, 270)
 
 STATUS_COLORS = {
     "connected": "#39d353",
@@ -70,7 +74,11 @@ class MainWindow(QMainWindow):
         engine.on_stats = self.stats_arrived.emit
         engine.on_frame = self.preview.submit
 
+        self._cycle_timer = QTimer(self)
+        self._cycle_timer.timeout.connect(self.next_scene)
+
         self.reload_scenes()
+        self._apply_cycle(self.config.cycle_seconds)
 
     # ------------------------------------------------------------------ build
 
@@ -139,13 +147,33 @@ class MainWindow(QMainWindow):
         self.scene_list = QListWidget()
         self.scene_list.currentRowChanged.connect(self._on_scene_selected)
 
+        flip = QHBoxLayout()
+        for label, slot, tip in (
+            ("Prev", self.previous_scene, "Previous scene"),
+            ("Next", self.next_scene, "Next scene"),
+        ):
+            button = QPushButton(label)
+            button.setFixedWidth(52)
+            button.setToolTip(tip)
+            button.clicked.connect(slot)
+            flip.addWidget(button)
+        self.cycle_spin = QSpinBox()
+        self.cycle_spin.setRange(0, 3600)
+        self.cycle_spin.setSuffix(" s")
+        self.cycle_spin.setSpecialValueText("off")
+        self.cycle_spin.setValue(self.config.cycle_seconds)
+        self.cycle_spin.setToolTip("Flip to the next scene automatically; 0 disables it")
+        self.cycle_spin.valueChanged.connect(self._on_cycle_changed)
+        flip.addWidget(QLabel("Cycle"))
+        flip.addWidget(self.cycle_spin, 1)
+
         buttons = QHBoxLayout()
         for label, slot in (("New", self._new_scene), ("Delete", self._delete_scene)):
             button = QPushButton(label)
             button.clicked.connect(slot)
             buttons.addWidget(button)
 
-        return self._titled("SCENES", self.scene_list, buttons)
+        return self._titled("SCENES", self.scene_list, flip, buttons)
 
     def _build_layer_pane(self) -> QWidget:
         self.layer_list = QListWidget()
@@ -198,6 +226,21 @@ class MainWindow(QMainWindow):
         self.tray_box.setChecked(self.config.minimise_to_tray)
         self.tray_box.toggled.connect(self._on_tray_pref)
 
+        self.rotation_combo = QComboBox()
+        for degrees in ROTATIONS:
+            self.rotation_combo.addItem(f"{degrees}°", degrees)
+        self.rotation_combo.setCurrentIndex(
+            ROTATIONS.index(self.config.rotation) if self.config.rotation in ROTATIONS else 0
+        )
+        self.rotation_combo.setToolTip(
+            "How the panel is physically mounted. Scenes are composed in what "
+            "you see, so this changes the frame shape as well as the output."
+        )
+        self.rotation_combo.currentIndexChanged.connect(self._on_rotation)
+
+        row.addWidget(QLabel("Orientation"))
+        row.addWidget(self.rotation_combo)
+        row.addSpacing(18)
         row.addWidget(QLabel("Brightness"))
         row.addWidget(self.brightness)
         row.addStretch(1)
@@ -237,6 +280,7 @@ class MainWindow(QMainWindow):
             (i for i, s in enumerate(self.scenes) if s.name == self.config.active_scene), 0
         )
         self.scene_list.setCurrentRow(wanted)
+        self._apply_cycle(self.config.cycle_seconds)
 
     def _on_scene_selected(self, row: int) -> None:
         if not (0 <= row < len(self.scenes)):
@@ -246,6 +290,30 @@ class MainWindow(QMainWindow):
         self.config.save()
         self.engine.set_scene(self.current_scene)
         self._refresh_layers()
+
+    def next_scene(self) -> None:
+        self._step_scene(1)
+
+    def previous_scene(self) -> None:
+        self._step_scene(-1)
+
+    def _step_scene(self, delta: int) -> None:
+        if not self.scenes:
+            return
+        row = (self.scene_list.currentRow() + delta) % len(self.scenes)
+        self.scene_list.setCurrentRow(row)
+
+    def _on_cycle_changed(self, seconds: int) -> None:
+        self.config.cycle_seconds = seconds
+        self.config.save()
+        self._apply_cycle(seconds)
+
+    def _apply_cycle(self, seconds: int) -> None:
+        """Start or stop the auto-advance timer."""
+        if seconds > 0 and len(self.scenes) > 1:
+            self._cycle_timer.start(seconds * 1000)
+        else:
+            self._cycle_timer.stop()
 
     def _new_scene(self) -> None:
         name, ok = QInputDialog.getText(self, "New scene", "Name:")
@@ -351,10 +419,11 @@ class MainWindow(QMainWindow):
     def _render_stats(self, stats: EngineStats) -> None:
         color = STATUS_COLORS.get(stats.status, "#8892b0")
         if stats.connected:
+            rotation = f" · {stats.rotation}°" if stats.rotation else ""
             text = (
                 f"● {stats.panel_label} · {stats.address} · "
                 f"{stats.model or 'unknown model'} fw {stats.firmware or '?'} · "
-                f"{stats.width}×{stats.height}"
+                f"{stats.width}×{stats.height}{rotation}"
             )
         elif stats.last_error:
             text = f"● {stats.last_error}"
@@ -376,6 +445,18 @@ class MainWindow(QMainWindow):
     def _on_pause(self, paused: bool) -> None:
         self.engine.set_paused(paused)
         self.pause_button.setText("Resume" if paused else "Pause")
+
+    def _on_rotation(self, index: int) -> None:
+        degrees = self.rotation_combo.itemData(index)
+        if degrees is None:
+            return
+        self.engine.set_rotation(int(degrees))
+        self.config.rotation = int(degrees)
+        self.config.save()
+        # The frame shape changed, so the stale preview would be the wrong
+        # aspect until the next frame lands.
+        self.preview.clear()
+        self.preview.set_placeholder(f"rotating to {degrees}°...")
 
     def _on_brightness(self, value: int) -> None:
         self.config.brightness = value

@@ -45,6 +45,8 @@ def run_gui(args=None) -> int:
             config.max_fps = args.max_fps
         if getattr(args, "scene", None):
             config.active_scene = args.scene
+        if getattr(args, "rotation", None) is not None:
+            config.rotation = args.rotation
 
     app = QApplication(sys.argv[:1])
     app.setApplicationName("FitzLCD")
@@ -55,7 +57,12 @@ def run_gui(args=None) -> int:
     stats.start()
 
     engine = RenderEngine(
-        EngineConfig(panel=config.panel, quality=config.quality, max_fps=config.max_fps),
+        EngineConfig(
+            panel=config.panel,
+            rotation=config.rotation,
+            quality=config.quality,
+            max_fps=config.max_fps,
+        ),
         metrics_provider=stats,
     )
 
@@ -68,6 +75,8 @@ def run_gui(args=None) -> int:
             on_show=lambda: (window.showNormal(), window.raise_(), window.activateWindow()),
             on_pause=window.pause_button.setChecked,
             on_quit=app.quit,
+            on_next=window.next_scene,
+            on_previous=window.previous_scene,
         )
         tray.set_scenes([s.name for s in window.scenes], _scene_switcher(window))
         tray.show()

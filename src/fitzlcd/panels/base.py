@@ -8,7 +8,7 @@ only ever sees :class:`Panel`.
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 
 from fitzlcd.render.encode import Transform
 
@@ -48,6 +48,30 @@ class PanelCaps:
     @property
     def aspect(self) -> float:
         return self.width / self.height
+
+    @property
+    def is_portrait(self) -> bool:
+        return self.height > self.width
+
+    def rotated(self, degrees: int) -> PanelCaps:
+        """Caps for a panel physically mounted ``degrees`` counter-clockwise.
+
+        Scenes are composed in whatever the *viewer* sees, so a panel turned on
+        its side is composed portrait. Rotating the composed frame back into the
+        panel's own logical space and then applying the panel's scan-out
+        transform are both rotations about the same centre, so they collapse into
+        a single one: the angles simply add.
+        """
+        degrees %= 360
+        if degrees % 90:
+            raise ValueError(f"rotation must be a multiple of 90, got {degrees}")
+        swap = degrees % 180 == 90
+        return replace(
+            self,
+            width=self.height if swap else self.width,
+            height=self.width if swap else self.height,
+            transform=self.transform.combine(degrees),
+        )
 
 
 @dataclass(frozen=True)

@@ -15,9 +15,9 @@ import logging
 import os
 from dataclasses import asdict, dataclass, field, fields
 from pathlib import Path
-from typing import Any
 
 from fitzlcd.render.scene import Scene, SceneError
+from fitzlcd.scenes_builtin import DEFAULT_SCENES
 
 log = logging.getLogger(__name__)
 
@@ -46,11 +46,15 @@ def config_path() -> Path:
 @dataclass
 class AppConfig:
     panel: str = "auto"
+    #: Physical mounting orientation, degrees counter-clockwise (0/90/180/270).
+    rotation: int = 0
     quality: int = 90
     max_fps: int | None = None
     active_scene: str = ""
     brightness: int = 100
     autostart: bool = False
+    #: Flip through the scene library automatically; 0 disables it.
+    cycle_seconds: int = 0
     minimise_to_tray: bool = True
     start_minimised: bool = False
     window_geometry: list[int] = field(default_factory=list)
@@ -119,106 +123,3 @@ class SceneLibrary:
 def _slug(name: str) -> str:
     keep = [c if c.isalnum() or c in "-_" else "-" for c in name.strip().lower()]
     return "".join(keep).strip("-") or "scene"
-
-
-#: Seeded on first run so the panel shows something useful immediately.
-DEFAULT_SCENES: dict[str, dict[str, Any]] = {
-    "rig-stats": {
-        "version": 1,
-        "name": "Rig Stats",
-        "fps": 10,
-        "background": "#05060f",
-        "layers": [
-            {"type": "solid", "color": "#0d1030", "color2": "#05060f"},
-            {
-                "type": "text",
-                "name": "cpu label",
-                "text": "CPU",
-                "size": 34,
-                "pos": [48, 60],
-                "color": "#8892b0",
-            },
-            {
-                "type": "text",
-                "name": "cpu value",
-                "text": "{cpu.load:.0f}%",
-                "size": 92,
-                "pos": [48, 100],
-                "color": "#ffcc00",
-            },
-            {
-                "type": "gauge",
-                "metric": "cpu.load",
-                "rect": [48, 230, 420, 26],
-                "color": "#ffcc00",
-            },
-            {
-                "type": "text",
-                "name": "gpu label",
-                "text": "GPU",
-                "size": 34,
-                "pos": [560, 60],
-                "color": "#8892b0",
-            },
-            {
-                "type": "text",
-                "name": "gpu value",
-                "text": "{gpu.load:.0f}%  {gpu.temp:.0f}°C",
-                "size": 92,
-                "pos": [560, 100],
-                "color": "#00e5ff",
-            },
-            {
-                "type": "sparkline",
-                "metric": "gpu.load",
-                "rect": [560, 230, 640, 90],
-                "color": "#00e5ff",
-                "fill_color": "#00e5ff33",
-            },
-            {
-                "type": "text",
-                "name": "memory",
-                "text": "RAM {mem.used_gb:.1f} / {mem.total_gb:.0f} GB",
-                "size": 40,
-                "pos": [48, 330],
-                "color": "#c3cad9",
-            },
-            {"type": "clock", "pos": [1872, 60], "size": 96, "align": "right"},
-            {
-                "type": "text",
-                "name": "date",
-                "text": "{time.date}",
-                "size": 38,
-                "pos": [1872, 175],
-                "color": "#8892b0",
-                "align": "right",
-            },
-        ],
-    },
-    "clock": {
-        "version": 1,
-        "name": "Clock",
-        "fps": 2,
-        "background": "#000000",
-        "layers": [
-            {"type": "clock", "pos": [960, 120], "size": 220, "align": "center"},
-            {
-                "type": "text",
-                "text": "{time.date}",
-                "size": 48,
-                "pos": [960, 360],
-                "color": "#8892b0",
-                "align": "center",
-            },
-        ],
-    },
-    "wallpaper": {
-        "version": 1,
-        "name": "Wallpaper",
-        "fps": 30,
-        "background": "#000000",
-        "layers": [
-            {"type": "media", "source": "", "fit": "cover", "pan": 0.5},
-        ],
-    },
-}

@@ -36,7 +36,7 @@ class Compositor:
         canvas = Image.new("RGBA", self.size, parse_color(scene.background))
 
         for layer in scene.visible_layers:
-            if layer.opacity <= 0:
+            if layer.opacity <= 0 or not layer.applies_to(self.size):
                 continue
             try:
                 self._draw_layer(layer, canvas, context)

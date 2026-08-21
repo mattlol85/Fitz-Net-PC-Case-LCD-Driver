@@ -11,6 +11,7 @@ from PIL import Image
 from fitzlcd.render.colors import parse_color
 from fitzlcd.render.context import RenderContext
 from fitzlcd.render.draw import overlay
+from fitzlcd.render.geometry import ANCHORS, Length, parse_anchor, resolve_rect
 from fitzlcd.render.scene import Field, Layer, layer_type
 
 
@@ -36,7 +37,14 @@ class GaugeLayer(Layer):
     FIELDS: ClassVar[tuple[Field, ...]] = (
         *Layer.FIELDS,
         Field("metric", "text", "Metric", "cpu.load"),
-        Field("rect", "rect", "Rect", [40, 40, 400, 48]),
+        Field(
+            "rect",
+            "rect",
+            "Rect",
+            [40, 40, 400, 48],
+            help="x, y, w, h -- px, -px from the far edge, or percentages",
+        ),
+        Field("anchor", "choice", "Anchor", "top-left", choices=ANCHORS),
         Field("minimum", "number", "Min", 0.0),
         Field("maximum", "number", "Max", 100.0),
         Field("color", "color", "Fill", "#FFCC00"),
@@ -47,7 +55,8 @@ class GaugeLayer(Layer):
     )
 
     metric: str = "cpu.load"
-    rect: tuple[int, int, int, int] | list[int] = (40, 40, 400, 48)
+    rect: tuple[Length, ...] | list[Length] = (40, 40, 400, 48)
+    anchor: str = "top-left"
     minimum: float = 0.0
     maximum: float = 100.0
     color: str = "#FFCC00"
@@ -64,7 +73,7 @@ class GaugeLayer(Layer):
         return self.name or f"gauge {self.metric}"
 
     def draw(self, canvas: Image.Image, ctx: RenderContext) -> None:
-        x, y, w, h = (int(v) for v in self.rect)
+        x, y, w, h = resolve_rect(self.rect, ctx.size, parse_anchor(self.anchor))
         if w <= 0 or h <= 0:
             return
         radius = max(0, min(int(self.radius), min(w, h) // 2))
@@ -106,6 +115,7 @@ class SparklineLayer(Layer):
         *Layer.FIELDS,
         Field("metric", "text", "Metric", "cpu.load"),
         Field("rect", "rect", "Rect", [40, 40, 400, 80]),
+        Field("anchor", "choice", "Anchor", "top-left", choices=ANCHORS),
         Field("minimum", "number", "Min", 0.0),
         Field("maximum", "number", "Max", 100.0),
         Field("color", "color", "Line", "#00E5FF"),
@@ -115,7 +125,8 @@ class SparklineLayer(Layer):
     )
 
     metric: str = "cpu.load"
-    rect: tuple[int, int, int, int] | list[int] = (40, 40, 400, 80)
+    rect: tuple[Length, ...] | list[Length] = (40, 40, 400, 80)
+    anchor: str = "top-left"
     minimum: float = 0.0
     maximum: float = 100.0
     color: str = "#00E5FF"
@@ -138,7 +149,7 @@ class SparklineLayer(Layer):
         return data
 
     def draw(self, canvas: Image.Image, ctx: RenderContext) -> None:
-        x, y, w, h = (int(v) for v in self.rect)
+        x, y, w, h = resolve_rect(self.rect, ctx.size, parse_anchor(self.anchor))
         if w <= 1 or h <= 1:
             return
 

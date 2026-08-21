@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import io
 import time
 
 import pytest
@@ -201,3 +202,58 @@ class TestSceneLibrary:
         for scene in library.list():
             assert scene.fps >= 1
             assert isinstance(scene.layers, list)
+
+
+class TestEngineRotation:
+    def test_composes_at_the_rotated_geometry(self, virtual_only):
+        seen: list[tuple[int, int]] = []
+        engine = make_engine(rotation=90)
+        engine.on_frame = lambda image: seen.append(image.size)
+        engine.set_scene(Scene.from_dict({"fps": 30, "layers": [{"type": "clock"}]}))
+        engine.start()
+        try:
+            assert wait_for(lambda: bool(seen))
+            assert seen[0] == (462, 1920), "portrait mounting should compose portrait"
+        finally:
+            engine.stop()
+
+    def test_rotating_at_runtime_changes_the_frame(self, virtual_only):
+        seen: list[tuple[int, int]] = []
+        engine = make_engine()
+        engine.on_frame = lambda image: seen.append(image.size)
+        engine.set_scene(Scene.from_dict({"fps": 30, "layers": [{"type": "clock"}]}))
+        engine.start()
+        try:
+            assert wait_for(lambda: (1920, 462) in seen)
+            engine.set_rotation(90)
+            assert wait_for(lambda: (462, 1920) in seen)
+            assert engine.stats.rotation == 90
+            assert (engine.stats.width, engine.stats.height) == (462, 1920)
+        finally:
+            engine.stop()
+
+    def test_output_is_always_the_panels_native_buffer(self, virtual_only):
+        """Whatever the mounting, the panel must receive its own scan-out shape."""
+        from PIL import Image
+
+        for degrees in (0, 90, 180, 270):
+            engine = make_engine(rotation=degrees)
+            engine.set_scene(Scene.from_dict({"fps": 30, "layers": [{"type": "clock"}]}))
+            engine.start()
+            try:
+                assert wait_for(lambda e=engine: e.stats.frames_sent > 0)
+                payload = engine._panel.last_frame
+            finally:
+                engine.stop()
+            with Image.open(io.BytesIO(payload)) as sent:
+                assert sent.size == (462, 1920), f"wrong buffer shape at {degrees}°"
+
+    def test_rejects_non_quarter_turns(self):
+        engine = make_engine()
+        with pytest.raises(ValueError, match="multiple of 90"):
+            engine.set_rotation(45)
+
+    def test_rotation_is_a_no_op_when_unchanged(self, virtual_only):
+        engine = make_engine(rotation=90)
+        engine.set_rotation(90)
+        assert engine.config.rotation == 90

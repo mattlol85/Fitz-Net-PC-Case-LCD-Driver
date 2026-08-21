@@ -61,6 +61,7 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("-o", "--out", default=str(ROOT / "build" / "gui-screenshot.png"))
     ap.add_argument("--scene", default="Rig Stats")
     ap.add_argument("--size", default="1180x760")
+    ap.add_argument("--rotation", type=int, choices=(0, 90, 180, 270), default=0)
     args = ap.parse_args(argv)
 
     width, _, height = args.size.partition("x")
@@ -73,6 +74,7 @@ def main(argv: list[str] | None = None) -> int:
 
     config = AppConfig.load()
     config.active_scene = args.scene
+    config.rotation = args.rotation
     library = SceneLibrary()
     library.ensure_defaults()
 
@@ -87,9 +89,17 @@ def main(argv: list[str] | None = None) -> int:
     stats.stop()
 
     if window.current_scene is not None:
-        frame = Compositor(1920, 462).compose(
-            window.current_scene, RenderContext(1920, 462, metrics=metrics)
-        )
+        from fitzlcd.panels.base import PanelCaps
+        from fitzlcd.render.encode import Transform
+
+        caps = PanelCaps(1920, 462, Transform.ROT_270).rotated(args.rotation)
+        compositor = Compositor(caps.width, caps.height)
+        frame = None
+        for i in range(30):  # sparklines need a little history before they draw
+            frame = compositor.compose(
+                window.current_scene,
+                RenderContext(caps.width, caps.height, time=i / 10, metrics=metrics),
+            )
         window.preview._on_frame(frame)
 
     shot_stats = EngineStats(
@@ -98,8 +108,9 @@ def main(argv: list[str] | None = None) -> int:
         address="COM5",
         model="D215-FL7707N-9.16inch-hor",
         firmware="2.2",
-        width=1920,
-        height=462,
+        width=1920 if args.rotation % 180 == 0 else 462,
+        height=462 if args.rotation % 180 == 0 else 1920,
+        rotation=args.rotation,
         fps=10.0,
         bytes_per_second=0.57e6,
         frames_sent=128,

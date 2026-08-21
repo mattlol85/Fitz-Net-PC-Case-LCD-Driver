@@ -15,7 +15,13 @@ from PIL import Image
 
 
 class Transform(StrEnum):
-    """Rotation applied to a composed frame before encoding."""
+    """Rotation applied to a composed frame before encoding.
+
+    Two independent rotations end up combined here: the panel's own scan-out
+    quirk (the DS916 wants its 1920x462 frame delivered as 462x1920) and however
+    the user physically mounted the thing in the case. Both are angles, so they
+    compose by addition -- see :meth:`combine`.
+    """
 
     NONE = "none"
     ROT_90 = "rot90"  # counter-clockwise
@@ -25,6 +31,33 @@ class Transform(StrEnum):
     @classmethod
     def from_angle(cls, angle: int) -> Transform:
         return {0: cls.NONE, 90: cls.ROT_90, 180: cls.ROT_180, 270: cls.ROT_270}[angle % 360]
+
+    @property
+    def angle(self) -> int:
+        """Counter-clockwise rotation in degrees."""
+        return {
+            Transform.NONE: 0,
+            Transform.ROT_90: 90,
+            Transform.ROT_180: 180,
+            Transform.ROT_270: 270,
+        }[self]
+
+    @property
+    def swaps_axes(self) -> bool:
+        """True when this rotation turns a landscape frame into a portrait one."""
+        return self.angle % 180 == 90
+
+    def combine(self, other: Transform | int) -> Transform:
+        """Return the single rotation equivalent to applying both."""
+        extra = other.angle if isinstance(other, Transform) else int(other)
+        return Transform.from_angle(self.angle + extra)
+
+    def inverse(self) -> Transform:
+        return Transform.from_angle(-self.angle)
+
+    @property
+    def label(self) -> str:
+        return "0°" if self.angle == 0 else f"{self.angle}°"
 
 
 _PIL_ROTATION = {

@@ -13,6 +13,9 @@ from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QColor, QImage, QPainter, QPen, QPixmap
 from PySide6.QtWidgets import QSizePolicy, QWidget
 
+#: Upper bound on the preview strip, in pixels.
+MAX_PREVIEW_HEIGHT = 340
+
 
 def pil_to_qimage(image: Image.Image) -> QImage:
     """Convert a Pillow RGB image to a QImage that owns its buffer."""
@@ -34,6 +37,10 @@ class PreviewWidget(QWidget):
         self._aspect = aspect
         self._placeholder = "waiting for a frame"
         self.setMinimumHeight(90)
+        # A portrait panel is 4:1 the other way, and its natural height would
+        # squeeze the editor off the bottom of the window. The frame is
+        # letterboxed into whatever room it gets, so capping height is safe.
+        self.setMaximumHeight(MAX_PREVIEW_HEIGHT)
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
         # Frames arrive on the engine thread; the signal hops them to the GUI thread.
         self.frame_ready.connect(self._on_frame, Qt.ConnectionType.QueuedConnection)
@@ -63,7 +70,7 @@ class PreviewWidget(QWidget):
         self.update()
 
     def heightForWidth(self, width: int) -> int:  # noqa: N802 - Qt naming
-        return int(width / self._aspect)
+        return min(MAX_PREVIEW_HEIGHT, int(width / self._aspect))
 
     def hasHeightForWidth(self) -> bool:  # noqa: N802 - Qt naming
         return True
@@ -71,7 +78,7 @@ class PreviewWidget(QWidget):
     def sizeHint(self):  # noqa: N802 - Qt naming
         from PySide6.QtCore import QSize
 
-        return QSize(960, int(960 / self._aspect))
+        return QSize(960, min(MAX_PREVIEW_HEIGHT, int(960 / self._aspect)))
 
     def paintEvent(self, event) -> None:  # noqa: N802 - Qt naming
         painter = QPainter(self)

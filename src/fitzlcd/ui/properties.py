@@ -178,11 +178,18 @@ class PropertiesPane(QScrollArea):
             return edit
 
         if spec.kind in ("point", "rect"):
-            edit = QLineEdit(", ".join(str(int(v)) for v in (value or ())))
+            # Coordinates are not necessarily numbers: "50%", "-40" and "center"
+            # are all valid, which is what makes a scene survive rotation.
+            edit = QLineEdit(", ".join(str(v) for v in (value or ())))
             expected = 2 if spec.kind == "point" else 4
-            edit.setPlaceholderText("x, y" if expected == 2 else "x, y, w, h")
+            edit.setPlaceholderText(
+                "x, y  (px, -px, 50%, center)"
+                if expected == 2
+                else "x, y, w, h  (px, -px, 50%, center)"
+            )
+            edit.setToolTip(spec.help)
             edit.editingFinished.connect(
-                lambda e=edit, n=spec.name, k=expected: self._apply_numbers(e, n, k)
+                lambda e=edit, n=spec.name, k=expected: self._apply_lengths(e, n, k)
             )
             return edit
 
@@ -198,14 +205,25 @@ class PropertiesPane(QScrollArea):
         edit.editingFinished.connect(lambda e=edit, n=spec.name: self._apply(n, e.text()))
         return edit
 
-    def _apply_numbers(self, edit: QLineEdit, name: str, expected: int) -> None:
+    def _apply_lengths(self, edit: QLineEdit, name: str, expected: int) -> None:
+        """Parse a coordinate list, keeping relative values as written.
+
+        Plain numbers become ints so scenes stay tidy; anything else ("50%",
+        "center") is stored verbatim for the geometry resolver to interpret.
+        """
         text = edit.text().strip()
         if not text:
             self._apply(name, [])
             return
-        try:
-            values = [int(float(part)) for part in text.replace(";", ",").split(",")]
-        except ValueError:
-            return  # leave the previous value alone rather than guessing
-        if len(values) == expected:
-            self._apply(name, values)
+
+        parts = [part.strip() for part in text.replace(";", ",").split(",") if part.strip()]
+        if len(parts) != expected:
+            return  # incomplete input: leave the layer alone rather than guessing
+
+        values: list[int | str] = []
+        for part in parts:
+            try:
+                values.append(int(float(part)))
+            except ValueError:
+                values.append(part)
+        self._apply(name, values)

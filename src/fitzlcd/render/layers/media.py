@@ -12,6 +12,7 @@ from PIL import Image, ImageDraw
 from fitzlcd.render.colors import parse_color
 from fitzlcd.render.context import RenderContext
 from fitzlcd.render.fit import Fit, fit_image
+from fitzlcd.render.geometry import ANCHORS, Length, parse_anchor, resolve_rect
 from fitzlcd.render.scene import Field, Layer, layer_type
 from fitzlcd.sources.media import MediaError, MediaSource, open_media
 
@@ -103,23 +104,22 @@ class SolidLayer(Layer):
         *Layer.FIELDS,
         Field("color", "color", "Color", "#000000"),
         Field("color2", "color", "Gradient to", "#00000000", help="blank for a flat fill"),
-        Field("rect", "rect", "Rect", [], help="empty = whole frame"),
+        Field("rect", "rect", "Rect", [], help="empty = whole frame; px or percentages"),
+        Field("anchor", "choice", "Anchor", "top-left", choices=ANCHORS),
         Field("radius", "number", "Corner radius", 0, minimum=0, maximum=400),
     )
 
     color: str = "#000000"
     color2: str = "#00000000"
-    rect: tuple[int, int, int, int] | list[int] = ()
+    rect: tuple[Length, ...] | list[Length] = ()
+    anchor: str = "top-left"
     radius: int = 0
 
     def describe(self) -> str:
         return self.name or f"solid {self.color}"
 
     def draw(self, canvas: Image.Image, ctx: RenderContext) -> None:
-        if self.rect:
-            x, y, w, h = (int(v) for v in self.rect)
-        else:
-            x, y, w, h = 0, 0, ctx.width, ctx.height
+        x, y, w, h = resolve_rect(self.rect, ctx.size, parse_anchor(self.anchor))
         if w <= 0 or h <= 0:
             return
 
