@@ -1,0 +1,28 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+
+# Environments
+.venv/
+venv/
+
+# Build output
+build/
+dist/
+out/
+
+# App runtime state (scenes/config live in %APPDATA%\FitzLCD)
+*.log
+
+# IntelliJ: ignore everything except the shared project setup we deliberately commit
+.idea/*
+!.idea/runConfigurations/
+!.idea/inspectionProfiles/
+!.idea/misc.xml
+!.idea/modules.xml
+!.idea/vcs.xml
+!.idea/.gitignore
