@@ -40,7 +40,7 @@ class MetricProvider(ABC):
     def read(self) -> dict[str, Any]:
         """Return the current values. Must not raise."""
 
-    def close(self) -> None:
+    def close(self) -> None:  # noqa: B027 - most providers hold nothing
         """Release any handles held by the provider."""
 
 

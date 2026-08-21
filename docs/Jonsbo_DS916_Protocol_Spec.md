@@ -261,3 +261,84 @@ ser.close()
   other sizes/orientations in the same product family may report a normal
   numeric angle (`0`, `90`, `180`, `270`) instead — don't assume the rotation
   quirk applies universally if you ever target a different panel size.
+
+---
+
+## 8. Findings from building FitzLCD (2026-08-21)
+
+Everything below was measured against the real DS916 on `COM5` while building the
+driver in this repo. It corrects and extends the sections above.
+
+### 8.1 The `angle` sentinel is not valid UTF-8 — parse the info reply leniently
+
+The `getDeviceInfo` payload is *almost* JSON. The `angle` field contains a raw
+`0x93` byte inside the string, so `json.loads(payload.decode("utf-8"))` raises
+`UnicodeDecodeError` — a strict parser simply never completes and the handshake
+appears to time out. Decode the JSON with `errors="replace"`, and read the raw
+bytes separately if you need the sentinel itself (`protocol.raw_angle`).
+
+Confirmed device values: model `D215-FL7707N-9.16inch-hor`, firmware `2.2`,
+1920×462, uid `8370D07832275608000B32020000B004`.
+
+### 8.2 Transport throughput — not the bottleneck
+
+Host-side write rates for 462×1920 JPEGs sent back to back, measured with
+`tools/ds916_probe.py bench`:
+
+| Quality | Avg frame | Frames/s | MB/s |
+|---|---|---|---|
+| 60 | 27.4 KB | 364 | 10.2 |
+| 75 | 30.3 KB | 347 | 10.8 |
+| 85 | 33.3 KB | 333 | 11.4 |
+| 95 | 55.9 KB | 237 | 13.6 |
+| 100 | 68.2 KB | 208 | 14.6 |
+
+Quality 100 is affordable on this link. **But see §8.3 — these are host write
+rates, not the panel's render rate.**
+
+### 8.3 Flooding the panel wedges it until it is power-cycled
+
+This is the most important finding, and it corrects §7's open question about
+sustained throughput. The benchmark above measures how fast the host can push
+bytes into the USB pipe, **not** how fast the panel consumes them. After roughly
+20 seconds of unpaced writing (~350 fps), the device stopped draining its bulk
+endpoint and did not recover:
+
+- `Serial.write()` blocks once the driver's output buffer fills.
+- `Serial.flush()` blocks **forever** — on Windows it waits on
+  `FlushFileBuffers`, which takes no timeout. Never call it on the frame path.
+- Worse, `serial.Serial()` — the *open* itself — then blocks indefinitely too, so
+  even a fresh process cannot recover the port. The device still enumerates and
+  still reports `Status: OK` in Windows, which makes it look healthy.
+- It did not recover on its own after 15+ minutes. Only a power cycle (unplug the
+  USB header, or reboot) clears it.
+
+Consequences baked into this driver:
+
+1. **Pace every frame.** `PanelCaps.max_fps` defaults to 30, and the engine drops
+   frames rather than queueing them.
+2. **No `flush()`** in `push_frame`; rely on `write_timeout` and treat a timeout
+   as backpressure.
+3. **Open on a watchdog thread** (`_open_serial_guarded`) so a wedged panel gives
+   a clear error in 5 s instead of hanging the app.
+4. The abandoned open thread can block interpreter shutdown, so the GUI calls
+   `os._exit()` once Qt's event loop returns.
+
+If you write your own client, "how fast can I write" is the wrong question. The
+right one is "how fast will the panel render", and the answer is much lower.
+
+### 8.4 Command keys — still unverified
+
+`0x03` (brightness) and the rest of §5 remain **unverified** on hardware: the
+panel wedged before that test ran. `tools/ds916_probe.py brightness <0-100>`
+exists to check it, and `PanelCaps.supports_brightness` stays `False` (with the
+GUI slider disabled) until it is confirmed. `0x0C` (OTA) is deliberately never
+sent by this codebase.
+
+### 8.5 Confirmed working
+
+- Autodetect by USB VID:PID `33C3:7788` via `serial.tools.list_ports`.
+- `GET_INFO` (`0x06`) handshake and lenient JSON parse.
+- `START` (`0x11`) wake, then raw chunked JPEG at 20 KiB — image displayed.
+- The −90° (clockwise, `ROT_270`) transform: compose 1920×462 landscape, rotate
+  to 462×1920, encode, send. Text reads horizontally on the panel.

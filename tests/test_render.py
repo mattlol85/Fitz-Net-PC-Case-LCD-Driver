@@ -140,7 +140,7 @@ class TestSceneModel:
         assert set(layer_types()) == {"text", "clock", "gauge", "sparkline", "media", "solid"}
 
     def test_every_layer_type_round_trips_from_its_defaults(self):
-        for name, cls in layer_types().items():
+        for name in layer_types():
             layer = Layer.from_dict({"type": name})
             data = layer.to_dict()
             assert data["type"] == name
