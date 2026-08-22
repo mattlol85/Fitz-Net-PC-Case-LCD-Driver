@@ -31,9 +31,10 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from fitzlcd.config import AppConfig, SceneLibrary
+from fitzlcd.config import AppConfig, SceneLibrary, app_dir
 from fitzlcd.engine import EngineStats, RenderEngine
 from fitzlcd.render.scene import Layer, Scene, layer_types
+from fitzlcd.sources.cs2gsi import cs2_gsi_cfg_installed, find_cs2_cfg_dir, install_cs2_gsi_cfg
 from fitzlcd.ui.preview import PreviewWidget
 from fitzlcd.ui.properties import PropertiesPane
 
@@ -238,12 +239,19 @@ class MainWindow(QMainWindow):
         )
         self.rotation_combo.currentIndexChanged.connect(self._on_rotation)
 
+        self.cs2_btn = QPushButton("CS2 GSI…")
+        self.cs2_btn.setFixedWidth(150)
+        self.cs2_btn.clicked.connect(self._on_cs2_setup)
+        self._refresh_cs2_button()
+
         row.addWidget(QLabel("Orientation"))
         row.addWidget(self.rotation_combo)
         row.addSpacing(18)
         row.addWidget(QLabel("Brightness"))
         row.addWidget(self.brightness)
         row.addStretch(1)
+        row.addWidget(self.cs2_btn)
+        row.addSpacing(8)
         row.addWidget(self.autostart_box)
         row.addWidget(self.tray_box)
         return frame
@@ -477,6 +485,80 @@ class MainWindow(QMainWindow):
     def _on_tray_pref(self, enabled: bool) -> None:
         self.config.minimise_to_tray = enabled
         self.config.save()
+
+    def _refresh_cs2_button(self) -> None:
+        """Update the CS2 GSI button label and tooltip to reflect installation state."""
+        cs2_dir = find_cs2_cfg_dir()
+        if cs2_dir and cs2_gsi_cfg_installed():
+            cfg_path = cs2_dir / "gamestate_integration_fitzlcd.cfg"
+            self.cs2_btn.setText("CS2 GSI ✓ Ready")
+            self.cs2_btn.setToolTip(f"Config installed at:\n{cfg_path}\n\nClick for details.")
+            self.cs2_btn.setStyleSheet("color: #39d353;")
+        elif cs2_dir:
+            self.cs2_btn.setText("Install CS2 GSI")
+            self.cs2_btn.setToolTip(
+                "The GSI config file is missing from CS2's cfg folder.\n"
+                "Click to install it automatically."
+            )
+            self.cs2_btn.setStyleSheet("color: #d9a441;")
+        else:
+            self.cs2_btn.setText("CS2 GSI: Setup")
+            self.cs2_btn.setToolTip(
+                "CS2 installation not found automatically.\n"
+                "Click for manual setup instructions."
+            )
+            self.cs2_btn.setStyleSheet("color: #8892b0;")
+
+    def _on_cs2_setup(self) -> None:
+        """Install the GSI config into CS2's cfg folder, or show setup instructions."""
+        cs2_dir = find_cs2_cfg_dir()
+
+        if cs2_dir and cs2_gsi_cfg_installed():
+            cfg_path = cs2_dir / "gamestate_integration_fitzlcd.cfg"
+            QMessageBox.information(
+                self,
+                "CS2 GSI Ready",
+                f"The GSI config file is already installed:\n\n{cfg_path}\n\n"
+                "CS2 will send match data to FitzLCD while a game is active.\n"
+                "If the LCD still shows 'Waiting for match', restart CS2 so it "
+                "re-reads its cfg folder.",
+            )
+            return
+
+        if cs2_dir:
+            try:
+                installed_path = install_cs2_gsi_cfg(self.config)
+            except OSError as exc:
+                QMessageBox.warning(self, "CS2 GSI Error", f"Could not write config file:\n{exc}")
+                return
+            self._refresh_cs2_button()
+            QMessageBox.information(
+                self,
+                "CS2 GSI Installed",
+                f"Config file installed to:\n\n{installed_path}\n\n"
+                "Restart CS2 for it to take effect, then re-join a match.",
+            )
+            return
+
+        # CS2 not found — open the folder containing the staging copy
+        import subprocess  # noqa: PLC0415
+
+        staging = app_dir() / "gamestate_integration_fitzlcd.cfg"
+        QMessageBox.information(
+            self,
+            "CS2 GSI Manual Setup",
+            "Could not locate CS2 automatically.\n\n"
+            "Copy this file into CS2's cfg folder:\n\n"
+            f"  Source:  {staging}\n\n"
+            "  Destination:\n"
+            "  <Steam>\\steamapps\\common\\Counter-Strike Global Offensive"
+            "\\game\\csgo\\cfg\\\n\n"
+            "The folder containing the source file will open now.",
+        )
+        try:
+            subprocess.Popen(["explorer", "/select,", str(staging)])  # noqa: S603, S607
+        except Exception:  # noqa: BLE001
+            pass
 
     def closeEvent(self, event) -> None:  # noqa: N802 - Qt naming
         """Closing hides to the tray; quitting is an explicit tray action."""

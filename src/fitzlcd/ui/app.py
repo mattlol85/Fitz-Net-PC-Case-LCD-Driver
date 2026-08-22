@@ -9,8 +9,9 @@ import sys
 from PySide6.QtWidgets import QApplication, QSystemTrayIcon
 
 import fitzlcd.render.layers  # noqa: F401 - registers the built-in layer types
-from fitzlcd.config import AppConfig, SceneLibrary
+from fitzlcd.config import AppConfig, SceneLibrary, ensure_cs2_gsi_token
 from fitzlcd.engine import EngineConfig, RenderEngine
+from fitzlcd.sources.cs2gsi import Cs2GsiProvider, write_cs2_gsi_cfg
 from fitzlcd.sources.stats import StatsRegistry
 from fitzlcd.ui.main_window import MainWindow
 from fitzlcd.ui.tray import TrayIcon
@@ -36,6 +37,12 @@ QSplitter::handle { background: #1b2030; }
 def run_gui(args=None) -> int:
     """Start the application. Returns the Qt exit code."""
     config = AppConfig.load()
+    config = ensure_cs2_gsi_token(config)
+    cfg_path = write_cs2_gsi_cfg(config)
+    log.info(
+        "CS2 GSI config written to %s - copy it into <Steam>/steamapps/common/"
+        "Counter-Strike Global Offensive/game/csgo/cfg/ and restart CS2", cfg_path
+    )
     if args is not None:
         if getattr(args, "panel", None):
             config.panel = args.panel
@@ -54,6 +61,10 @@ def run_gui(args=None) -> int:
     app.setStyleSheet(DARK_QSS)
 
     stats = StatsRegistry.with_defaults()
+    try:
+        stats.add(Cs2GsiProvider(port=config.cs2_gsi_port, token=config.cs2_gsi_token))
+    except OSError as exc:
+        log.warning("CS2 GSI listener unavailable: %s", exc)
     stats.start()
 
     engine = RenderEngine(

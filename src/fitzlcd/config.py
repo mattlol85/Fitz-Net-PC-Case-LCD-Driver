@@ -13,6 +13,7 @@ from __future__ import annotations
 import json
 import logging
 import os
+import secrets
 from dataclasses import asdict, dataclass, field, fields
 from pathlib import Path
 
@@ -58,6 +59,8 @@ class AppConfig:
     minimise_to_tray: bool = True
     start_minimised: bool = False
     window_geometry: list[int] = field(default_factory=list)
+    cs2_gsi_port: int = 13001
+    cs2_gsi_token: str = ""
 
     @classmethod
     def load(cls, path: Path | None = None) -> AppConfig:
@@ -77,6 +80,20 @@ class AppConfig:
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_text(json.dumps(asdict(self), indent=2), encoding="utf-8")
         return target
+
+
+def ensure_cs2_gsi_token(config: AppConfig) -> AppConfig:
+    """Generate a persisted GSI shared secret on first use.
+
+    A predictable default token (or none at all) would let anything else on
+    the machine post fake match state to the listener; generating one lazily
+    and saving it means it's stable across restarts without ever having
+    shipped a guessable default.
+    """
+    if not config.cs2_gsi_token:
+        config.cs2_gsi_token = secrets.token_hex(8)
+        config.save()
+    return config
 
 
 class SceneLibrary:

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import time
 
 import pytest
 from PIL import Image
@@ -137,7 +138,16 @@ class TestSceneModel:
             Scene.load(path)
 
     def test_all_builtin_layer_types_are_registered(self):
-        assert set(layer_types()) == {"text", "clock", "gauge", "sparkline", "media", "solid"}
+        assert set(layer_types()) == {
+            "text",
+            "clock",
+            "gauge",
+            "sparkline",
+            "media",
+            "solid",
+            "cs2_hit_timeline",
+            "cs2_hit_flash",
+        }
 
     def test_every_layer_type_round_trips_from_its_defaults(self):
         for name in layer_types():
@@ -239,6 +249,71 @@ class TestCompositor:
         ctx = RenderContext(*PANEL, metrics={"cpu.load": 88})
         frame = Compositor(*PANEL).compose(scene, ctx)
         assert any(p != (0, 0, 0) for p in frame.get_flattened_data()), "nothing was drawn"
+
+
+class TestCs2Layers:
+    def test_hit_timeline_draws_something_for_recent_events(self):
+        scene = Scene.from_dict(
+            {
+                "background": "#000000",
+                "layers": [
+                    {
+                        "type": "cs2_hit_timeline",
+                        "rect": [0, 0, 400, 100],
+                        "window_seconds": 10.0,
+                    }
+                ],
+            }
+        )
+        events = [{"t": time.monotonic(), "amount": 40, "kind": "health"}]
+        ctx = RenderContext(*PANEL, metrics={"cs2.player.hit_events": events})
+        frame = Compositor(*PANEL).compose(scene, ctx)
+        assert any(p != (0, 0, 0) for p in frame.get_flattened_data()), "nothing was drawn"
+
+    def test_hit_timeline_ignores_events_outside_window(self):
+        scene = Scene.from_dict(
+            {
+                "background": "#000000",
+                "layers": [
+                    {
+                        "type": "cs2_hit_timeline",
+                        "rect": [0, 0, 400, 100],
+                        "window_seconds": 10.0,
+                        "track_color": "#00000000",
+                        "baseline_color": "#00000000",
+                    }
+                ],
+            }
+        )
+        events = [{"t": time.monotonic() - 999, "amount": 40, "kind": "health"}]
+        ctx = RenderContext(*PANEL, metrics={"cs2.player.hit_events": events})
+        frame = Compositor(*PANEL).compose(scene, ctx)
+        assert all(p == (0, 0, 0) for p in frame.get_flattened_data()), "a stale event was drawn"
+
+    def test_hit_flash_only_draws_within_its_duration(self):
+        scene = Scene.from_dict(
+            {"background": "#000000", "layers": [{"type": "cs2_hit_flash", "duration": 0.5}]}
+        )
+
+        fresh = RenderContext(
+            *PANEL,
+            metrics={
+                "cs2.player.last_hit_seconds_ago": 0.1,
+                "cs2.player.last_hit_kind": "health",
+            },
+        )
+        frame = Compositor(*PANEL).compose(scene, fresh)
+        assert any(p != (0, 0, 0) for p in frame.get_flattened_data()), "nothing was drawn"
+
+        stale = RenderContext(
+            *PANEL,
+            metrics={
+                "cs2.player.last_hit_seconds_ago": 5.0,
+                "cs2.player.last_hit_kind": "health",
+            },
+        )
+        frame = Compositor(*PANEL).compose(scene, stale)
+        assert all(p == (0, 0, 0) for p in frame.get_flattened_data()), "flash did not fade out"
 
 
 class TestEncode:
