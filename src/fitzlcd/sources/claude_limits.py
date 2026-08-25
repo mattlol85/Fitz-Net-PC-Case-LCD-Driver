@@ -73,7 +73,9 @@ def _claude_dir() -> Path:
 
 
 def _http_get(url: str, headers: dict) -> tuple[int, str]:
-    request = urllib.request.Request(url, method="GET", headers=headers)  # noqa: S310 - fixed https URL
+    request = urllib.request.Request(
+        url, method="GET", headers=headers
+    )  # noqa: S310 - fixed https URL
     try:
         with urllib.request.urlopen(request, timeout=15) as response:  # noqa: S310
             return response.status, response.read().decode("utf-8", "replace")

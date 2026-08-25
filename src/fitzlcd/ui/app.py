@@ -42,7 +42,8 @@ def run_gui(args=None) -> int:
     cfg_path = write_cs2_gsi_cfg(config)
     log.info(
         "CS2 GSI config written to %s - copy it into <Steam>/steamapps/common/"
-        "Counter-Strike Global Offensive/game/csgo/cfg/ and restart CS2", cfg_path
+        "Counter-Strike Global Offensive/game/csgo/cfg/ and restart CS2",
+        cfg_path,
     )
     if args is not None:
         if getattr(args, "panel", None):

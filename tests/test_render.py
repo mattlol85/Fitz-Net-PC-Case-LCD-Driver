@@ -393,8 +393,11 @@ class TestDonutLayer:
 
     def test_thresholds_pick_the_fill_colour(self):
         scene = self._scene(
-            color="#0000FF", warn_color="#00FF00", critical_color="#FF0000",
-            warn_value=75.0, critical_value=90.0,
+            color="#0000FF",
+            warn_color="#00FF00",
+            critical_color="#FF0000",
+            warn_value=75.0,
+            critical_value=90.0,
         )
         seen = {}
         for label, value in (("base", 10), ("warn", 80), ("crit", 95)):
@@ -403,8 +406,12 @@ class TestDonutLayer:
             pixels = [p for p in frame.get_flattened_data() if p != (0, 0, 0)]
             # Antialiasing means the dominant channel identifies the colour.
             seen[label] = max(pixels, key=lambda p: max(p))
-        assert seen["base"][2] > seen["base"][0], f"base should be blue-dominant, got {seen['base']}"
-        assert seen["warn"][1] > seen["warn"][0], f"warn should be green-dominant, got {seen['warn']}"
+        assert (
+            seen["base"][2] > seen["base"][0]
+        ), f"base should be blue-dominant, got {seen['base']}"
+        assert (
+            seen["warn"][1] > seen["warn"][0]
+        ), f"warn should be green-dominant, got {seen['warn']}"
         assert seen["crit"][0] > seen["crit"][1], f"crit should be red-dominant, got {seen['crit']}"
 
     def test_more_value_means_more_ink(self):
@@ -428,9 +435,13 @@ class TestDonutLayer:
         plain = self._scene()
         labelled = self._scene(text="{test.pct:.0f}%", text_size=48)
         ctx = RenderContext(*PANEL, metrics={"test.pct": 50})
-        bare = sum(1 for p in Compositor(*PANEL).compose(plain, ctx).get_flattened_data() if p != (0, 0, 0))
+        bare = sum(
+            1 for p in Compositor(*PANEL).compose(plain, ctx).get_flattened_data() if p != (0, 0, 0)
+        )
         with_text = sum(
-            1 for p in Compositor(*PANEL).compose(labelled, ctx).get_flattened_data() if p != (0, 0, 0)
+            1
+            for p in Compositor(*PANEL).compose(labelled, ctx).get_flattened_data()
+            if p != (0, 0, 0)
         )
         assert with_text > bare, "centre text did not render"
 

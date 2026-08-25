@@ -173,7 +173,9 @@ class TestFailureModes:
             provider._back_off()
             delays.append(provider._next_attempt - time.monotonic())
         assert delays[0] < delays[1] < delays[2] < delays[3]
-        assert delays[4] == pytest.approx(delays[3], abs=1.0), "backoff should cap, not grow forever"
+        assert delays[4] == pytest.approx(
+            delays[3], abs=1.0
+        ), "backoff should cap, not grow forever"
 
     def test_rate_limit_still_serves_the_last_good_reading(self, root: Path):
         write_credentials(root)

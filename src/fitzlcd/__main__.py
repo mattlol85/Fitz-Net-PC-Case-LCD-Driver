@@ -69,7 +69,8 @@ def run_headless(args: argparse.Namespace) -> int:
     cfg_path = write_cs2_gsi_cfg(config)
     logging.getLogger(__name__).info(
         "CS2 GSI config written to %s - copy it into <Steam>/steamapps/common/"
-        "Counter-Strike Global Offensive/game/csgo/cfg/ and restart CS2", cfg_path
+        "Counter-Strike Global Offensive/game/csgo/cfg/ and restart CS2",
+        cfg_path,
     )
     library = SceneLibrary()
     library.ensure_defaults()
