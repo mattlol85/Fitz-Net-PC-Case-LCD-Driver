@@ -12,6 +12,8 @@ Metric names are dotted and stable - they are what users type into scenes:
     gpu.load  gpu.temp  gpu.vram_pct  gpu.vram_used_gb  gpu.power  gpu.name
     net.up  net.down  disk.used_pct
     time.now  time.date  time.uptime
+
+See :mod:`fitzlcd.sources.claude_usage` for the ``claude.*`` namespace.
 """
 
 from __future__ import annotations
@@ -183,8 +185,10 @@ class StatsRegistry:
     @classmethod
     def with_defaults(cls, interval: float = POLL_INTERVAL) -> StatsRegistry:
         """Build a registry with every provider this machine can actually run."""
+        from fitzlcd.sources.claude_usage import ClaudeUsageProvider
+
         registry = cls(interval)
-        for factory in (ClockProvider, CpuMemoryProvider, NvidiaProvider):
+        for factory in (ClockProvider, CpuMemoryProvider, NvidiaProvider, ClaudeUsageProvider):
             try:
                 registry.add(factory())
             except Exception as exc:  # noqa: BLE001 - absent hardware is normal
