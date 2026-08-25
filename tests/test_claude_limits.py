@@ -248,3 +248,26 @@ class TestCredentialHelpers:
 
     def test_version_falls_back_when_nothing_local(self, tmp_path: Path):
         assert detect_client_version(tmp_path / "empty") == "2.1.0"
+
+
+class TestCountdownFormatting:
+    @pytest.mark.parametrize(
+        ("seconds", "expected"),
+        [
+            (0, "now"),
+            (-5, "now"),
+            (30, "<1m"),
+            (90, "1m"),
+            (59 * 60, "59m"),
+            (60 * 60, "1h 00m"),
+            (3 * 60 * 60 + 13 * 60, "3h 13m"),
+            (23 * 60 * 60 + 59 * 60, "23h 59m"),
+            # The weekly window really does run to days; 47h reads badly.
+            (47 * 60 * 60 + 3 * 60, "1d 23h"),
+            (6 * 24 * 60 * 60, "6d 00h"),
+        ],
+    )
+    def test_humanise(self, seconds, expected):
+        from fitzlcd.sources.claude_limits import _humanise
+
+        assert _humanise(seconds) == expected

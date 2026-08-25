@@ -68,6 +68,7 @@ def run_gui(args=None) -> int:
         log.warning("CS2 GSI listener unavailable: %s", exc)
     if config.claude_limits_enabled:
         stats.add(ClaudeLimitsProvider(poll_seconds=config.claude_limits_poll_seconds))
+    log.info("metric providers: %s", ", ".join(stats.provider_names))
     stats.start()
 
     engine = RenderEngine(

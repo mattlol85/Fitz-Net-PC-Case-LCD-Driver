@@ -83,6 +83,7 @@ def _http_get(url: str, headers: dict) -> tuple[int, str]:
 
 
 def _humanise(seconds: float) -> str:
+    """Coarse countdown. The weekly window runs to days, so hours alone read badly."""
     if seconds <= 0:
         return "now"
     minutes = int(seconds // 60)
@@ -90,7 +91,11 @@ def _humanise(seconds: float) -> str:
         return "<1m"
     if minutes < 60:
         return f"{minutes}m"
-    return f"{minutes // 60}h {minutes % 60:02d}m"
+    hours, minutes = divmod(minutes, 60)
+    if hours < 24:
+        return f"{hours}h {minutes:02d}m"
+    days, hours = divmod(hours, 24)
+    return f"{days}d {hours:02d}h"
 
 
 def _parse_iso(value: object) -> float | None:
@@ -239,6 +244,7 @@ class ClaudeLimitsProvider(MetricProvider):
 
     def _save_cache(self) -> None:
         if self._cache_path is None:
+            log.warning("claude limits: no cache path; every restart will spend a request")
             return
         try:
             self._cache_path.parent.mkdir(parents=True, exist_ok=True)
@@ -246,8 +252,11 @@ class ClaudeLimitsProvider(MetricProvider):
                 json.dumps({"payload": self._payload, "fetched_at": self._fetched_at}),
                 encoding="utf-8",
             )
+            log.debug("claude limits: cached to %s", self._cache_path)
         except OSError as exc:
-            log.debug("claude limits: could not write cache (%s)", exc)
+            # Warn, not debug: losing the cache silently means every restart
+            # spends a request against a bucket that throttles hard.
+            log.warning("claude limits: could not write cache to %s (%s)", self._cache_path, exc)
 
     # ---------------------------------------------------------------- fetch
 
@@ -276,6 +285,8 @@ class ClaudeLimitsProvider(MetricProvider):
     def _poll(self) -> None:
         token, expires_at = read_access_token(self._root)
         if token is None:
+            if self._status != "NOT SIGNED IN":  # log the transition, not every poll
+                log.warning("claude limits: no OAuth token under %s", self._root)
             self._status = "NOT SIGNED IN"
             self._next_attempt = time.monotonic() + self._poll_seconds
             return
@@ -284,9 +295,12 @@ class ClaudeLimitsProvider(MetricProvider):
             # Deliberately no refresh: rotating the refresh token here could
             # invalidate the user's real Claude Code login. Claude Code renews it
             # during normal use and we re-read the file next tick.
+            if self._status != "STALE":  # log the transition, not every poll
+                log.warning(
+                    "claude limits: access token expired; waiting for Claude Code to renew it"
+                )
             self._status = "STALE"
             self._next_attempt = time.monotonic() + self._poll_seconds
-            log.debug("claude limits: access token expired; waiting for Claude Code to renew")
             return
 
         try:

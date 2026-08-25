@@ -1221,18 +1221,10 @@ def _claude_usage() -> dict[str, Any]:
             "align": "right",
             "color": DIM,
         },
-        {
-            "type": "text",
-            "name": "sonnet week",
-            "text": "SONNET 7d   {claude.limits.week_sonnet.pct:.0f}%",
-            "orientation": "landscape",
-            "font": "sans",
-            "size": 20,
-            "pos": ["-3%", "78%"],
-            "anchor": "top-right",
-            "align": "right",
-            "color": DIM,
-        },
+        # No per-model row here on purpose: seven_day_sonnet / seven_day_opus are
+        # null on plans that do not break the weekly window down that way, so the
+        # line would sit there reading "—%" forever. The metrics still exist for
+        # anyone whose account reports them.
     ]
 
     tall = [

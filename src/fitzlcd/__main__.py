@@ -88,6 +88,7 @@ def run_headless(args: argparse.Namespace) -> int:
         logging.getLogger(__name__).warning("CS2 GSI listener unavailable: %s", exc)
     if config.claude_limits_enabled:
         stats.add(ClaudeLimitsProvider(poll_seconds=config.claude_limits_poll_seconds))
+    logging.getLogger(__name__).info("metric providers: %s", ", ".join(stats.provider_names))
     stats.start()
 
     engine = RenderEngine(
