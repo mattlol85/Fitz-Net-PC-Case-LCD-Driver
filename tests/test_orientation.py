@@ -42,6 +42,24 @@ SAMPLE_METRICS = {
     "time.now": "19:41:02",
     "time.date": "2026-08-21",
     "time.uptime": "3h07m",
+    # Claude usage and subscription limits, deliberately at their widest: full
+    # rings and ten-figure token counts, so the overflow guard below is measuring
+    # the longest strings these layers can actually produce.
+    "claude.model": "claude-opus-5",
+    "claude.today.tokens": 147_539_548,
+    "claude.today.cost_usd": 1127.39,
+    "claude.today.messages": 9876,
+    "claude.today.sessions": 42,
+    "claude.week.tokens": 1_407_455_751,
+    "claude.week.cost_usd": 9917.87,
+    "claude.total.tokens": 1_475_395_486,
+    "claude.total.cost_usd": 11127.39,
+    "claude.limits.session.pct": 100.0,
+    "claude.limits.session.resets_text": "4h 59m",
+    "claude.limits.week.pct": 100.0,
+    "claude.limits.week.resets_text": "6d 23h",
+    "claude.limits.week_sonnet.pct": 100.0,
+    "claude.limits.status_text": "",
 }
 
 
