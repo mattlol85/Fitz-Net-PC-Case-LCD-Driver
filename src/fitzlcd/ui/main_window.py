@@ -8,6 +8,7 @@ footer      brightness, autostart, minimise-to-tray
 
 from __future__ import annotations
 
+import contextlib
 import logging
 
 from PySide6.QtCore import Qt, QTimer, Signal
@@ -555,10 +556,8 @@ class MainWindow(QMainWindow):
             "\\game\\csgo\\cfg\\\n\n"
             "The folder containing the source file will open now.",
         )
-        try:
+        with contextlib.suppress(Exception):  # noqa: BLE001 - opening Explorer is best-effort
             subprocess.Popen(["explorer", "/select,", str(staging)])  # noqa: S603, S607
-        except Exception:  # noqa: BLE001
-            pass
 
     def closeEvent(self, event) -> None:  # noqa: N802 - Qt naming
         """Closing hides to the tray; quitting is an explicit tray action."""
