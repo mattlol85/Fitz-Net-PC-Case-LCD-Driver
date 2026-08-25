@@ -61,6 +61,11 @@ class AppConfig:
     window_geometry: list[int] = field(default_factory=list)
     cs2_gsi_port: int = 13001
     cs2_gsi_token: str = ""
+    #: Poll the Claude usage endpoint for subscription limit percentages.
+    claude_limits_enabled: bool = True
+    #: Seconds between polls. Floor-clamped to 180 s by the provider: the endpoint
+    #: throttles hard, and this bucket is shared with your own Claude Code.
+    claude_limits_poll_seconds: int = 300
 
     @classmethod
     def load(cls, path: Path | None = None) -> AppConfig:

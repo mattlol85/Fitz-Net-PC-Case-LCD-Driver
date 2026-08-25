@@ -11,6 +11,7 @@ from PySide6.QtWidgets import QApplication, QSystemTrayIcon
 import fitzlcd.render.layers  # noqa: F401 - registers the built-in layer types
 from fitzlcd.config import AppConfig, SceneLibrary, ensure_cs2_gsi_token
 from fitzlcd.engine import EngineConfig, RenderEngine
+from fitzlcd.sources.claude_limits import ClaudeLimitsProvider
 from fitzlcd.sources.cs2gsi import Cs2GsiProvider, write_cs2_gsi_cfg
 from fitzlcd.sources.stats import StatsRegistry
 from fitzlcd.ui.main_window import MainWindow
@@ -65,6 +66,8 @@ def run_gui(args=None) -> int:
         stats.add(Cs2GsiProvider(port=config.cs2_gsi_port, token=config.cs2_gsi_token))
     except OSError as exc:
         log.warning("CS2 GSI listener unavailable: %s", exc)
+    if config.claude_limits_enabled:
+        stats.add(ClaudeLimitsProvider(poll_seconds=config.claude_limits_poll_seconds))
     stats.start()
 
     engine = RenderEngine(
