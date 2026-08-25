@@ -373,8 +373,8 @@ def _steam_library_paths() -> list[Path]:
         roots.append(reg_path)
 
     for candidate in [
-        Path(os.environ.get("ProgramFiles(x86)", r"C:\Program Files (x86)")) / "Steam",
-        Path(os.environ.get("ProgramFiles", r"C:\Program Files")) / "Steam",
+        Path(os.environ.get("PROGRAMFILES(X86)", r"C:\Program Files (x86)")) / "Steam",
+        Path(os.environ.get("PROGRAMFILES", r"C:\Program Files")) / "Steam",
     ]:
         if candidate.is_dir() and candidate not in roots:
             roots.append(candidate)

@@ -1,0 +1,213 @@
+name: 🚀 Publish Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      increment-type:
+        description: "Version increment type"
+        required: true
+        default: "patch"
+        type: choice
+        options:
+          - major
+          - minor
+          - patch
+
+permissions:
+  contents: write
+  actions: write
+
+jobs:
+  build:
+    name: 🧪 Build & Test
+    runs-on: windows-latest
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: 🐍 Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+
+      - name: 📦 Install dependencies
+        run: pip install -e ".[dev]"
+
+      - name: ✅ Lint
+        run: ruff check .
+
+      - name: 🧪 Run tests
+        run: pytest -q
+
+      - name: 🔨 Build EXE with PyInstaller
+        run: python -m PyInstaller packaging/fitzlcd.spec --noconfirm
+
+      - name: 🗜️ Zip the standalone build
+        run: Compress-Archive -Path dist/FitzLCD/* -DestinationPath FitzLCD-windows.zip
+
+      - name: 📤 Upload EXE artifact
+        uses: actions/upload-artifact@v6
+        with:
+          name: fitzlcd-exe
+          path: FitzLCD-windows.zip
+          retention-days: 30
+
+  version:
+    name: 🏷️ Version & Tag
+    runs-on: ubuntu-latest
+    needs: build
+    outputs:
+      new-version: ${{ steps.version_calc.outputs.new-version }}
+      new-version-no-v: ${{ steps.version_calc.outputs.new-version-no-v }}
+      increment-type: ${{ steps.version_calc.outputs.increment-type }}
+      emoji: ${{ steps.version_calc.outputs.emoji }}
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: 🔍 Determine next version
+        id: version_calc
+        env:
+          INCREMENT_TYPE: ${{ github.event.inputs.increment-type }}
+        run: |
+          set -euo pipefail
+          echo "::group::Calculating version"
+          LATEST_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "v0.0.0")
+          echo "Latest tag: $LATEST_TAG"
+          VERSION=${LATEST_TAG#v}
+          IFS='.' read -ra PARTS <<< "$VERSION"
+          MAJOR=${PARTS[0]:-0}
+          MINOR=${PARTS[1]:-0}
+          PATCH=${PARTS[2]:-0}
+
+          # Ensure numeric values
+          MAJOR=$((MAJOR + 0))
+          MINOR=$((MINOR + 0))
+          PATCH=$((PATCH + 0))
+
+          # Use input increment type
+          INCREMENT="$INCREMENT_TYPE"
+          case "$INCREMENT" in
+            major)
+              EMOJI="🚀"
+              MAJOR=$((MAJOR + 1)); MINOR=0; PATCH=0 ;;
+            minor)
+              EMOJI="✨"
+              MINOR=$((MINOR + 1)); PATCH=0 ;;
+            patch)
+              EMOJI="🐛"
+              PATCH=$((PATCH + 1)) ;;
+            *)
+              echo "Invalid increment type: $INCREMENT" >&2
+              exit 1 ;;
+          esac
+
+          NEW_VERSION_NO_V="$MAJOR.$MINOR.$PATCH"
+          NEW_VERSION="v$NEW_VERSION_NO_V"
+
+          echo "new-version=$NEW_VERSION" >> "$GITHUB_OUTPUT"
+          echo "new-version-no-v=$NEW_VERSION_NO_V" >> "$GITHUB_OUTPUT"
+          echo "increment-type=$INCREMENT" >> "$GITHUB_OUTPUT"
+          echo "emoji=$EMOJI" >> "$GITHUB_OUTPUT"
+          echo "$EMOJI $LATEST_TAG -> $NEW_VERSION ($INCREMENT)"
+          echo "::endgroup::"
+
+      - name: 📝 Update pyproject.toml
+        env:
+          NEW_VERSION_NO_V: ${{ steps.version_calc.outputs.new-version-no-v }}
+        run: |
+          python3 - <<'PY'
+          import os
+          import pathlib
+          import re
+
+          path = pathlib.Path('pyproject.toml')
+          text = path.read_text()
+          new_version = os.environ['NEW_VERSION_NO_V']
+          updated, count = re.subn(
+              r'(?m)^version\s*=\s*"[^"]+"', f'version = "{new_version}"', text, count=1
+          )
+          if count == 0:
+              raise SystemExit('Failed to update version in pyproject.toml')
+          path.write_text(updated)
+          print(f"Updated pyproject.toml to {new_version}")
+          PY
+
+      - name: 📄 Show version change
+        run: grep "^version" -n pyproject.toml
+
+      - name: 📚 Commit version bump
+        env:
+          NEW_VERSION: ${{ steps.version_calc.outputs.new-version }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add pyproject.toml
+          git commit -m "chore: bump version to $NEW_VERSION [skip ci]"
+          git push origin ${{ github.ref_name }}
+
+      - name: 🏷️ Create annotated tag
+        env:
+          NEW_VERSION: ${{ steps.version_calc.outputs.new-version }}
+          INCREMENT: ${{ steps.version_calc.outputs.increment-type }}
+          EMOJI: ${{ steps.version_calc.outputs.emoji }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag -a "$NEW_VERSION" -m "$EMOJI Auto $INCREMENT release $NEW_VERSION"
+          git push origin "$NEW_VERSION"
+
+  release:
+    name: 📦 Create GitHub Release
+    runs-on: ubuntu-latest
+    needs: version
+    if: needs.version.result == 'success'
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: 📥 Download EXE artifact
+        uses: actions/download-artifact@v7
+        with:
+          name: fitzlcd-exe
+          path: downloaded-zip
+
+      - name: 🔄 Rename zip to release version
+        id: final_zip
+        env:
+          NEW_VERSION_NO_V: ${{ needs.version.outputs.new-version-no-v }}
+        run: |
+          NEW_NAME="FitzLCD-${NEW_VERSION_NO_V}-windows.zip"
+          NEW_PATH="downloaded-zip/$NEW_NAME"
+          mv "downloaded-zip/FitzLCD-windows.zip" "$NEW_PATH"
+          echo "zip-path=$NEW_PATH" >> $GITHUB_OUTPUT
+          echo "zip-name=$NEW_NAME" >> $GITHUB_OUTPUT
+
+      - name: 📦 Create GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NEW_VERSION: ${{ needs.version.outputs.new-version }}
+          INCREMENT: ${{ needs.version.outputs.increment-type }}
+          EMOJI: ${{ needs.version.outputs.emoji }}
+          ZIP_NAME: ${{ steps.final_zip.outputs.zip-name }}
+          ZIP_PATH: ${{ steps.final_zip.outputs.zip-path }}
+        run: |
+          NOTES_FILE=$(mktemp)
+          {
+            echo "## $EMOJI Release"
+            echo "Manual release for $NEW_VERSION"
+            echo ""
+            echo "- Version increment: $INCREMENT"
+            echo "- Released by: ${{ github.actor }}"
+            echo ""
+            echo "### 📦 Artifact"
+            echo "- $ZIP_NAME (standalone Windows build - unzip and run FitzLCD.exe)"
+          } > "$NOTES_FILE"
+          gh release create "$NEW_VERSION" --title "$EMOJI Release $NEW_VERSION" --notes-file "$NOTES_FILE" "$ZIP_PATH"
