@@ -164,6 +164,15 @@ in the render loop, the engine thread and the serial driver.
 it renders the whole library at 0/90/180/270° into one contact sheet, with no
 hardware involved.
 
+### Releases
+
+Every push and PR to `main`/`master` runs lint + tests via
+[`python-build.yaml`](.github/workflows/python-build.yaml). Cutting a release is
+manual: run the [`Publish Release`](.github/workflows/publish.yml) workflow from
+the Actions tab, pick `major` / `minor` / `patch`, and it bumps the version in
+`pyproject.toml`, tags it, builds the PyInstaller EXE, and attaches
+`FitzLCD-<version>-windows.zip` to a new GitHub Release.
+
 ## Architecture
 
 ```
