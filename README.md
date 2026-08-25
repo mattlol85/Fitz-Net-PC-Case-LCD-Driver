@@ -18,7 +18,7 @@ added without touching anything above the driver layer.
 - **Composes scenes** from a stack of layers: media (image / GIF / video), text
   with live `{cpu.load:.0f}` style metric tokens, bar gauges, sparklines, a
   clock, and solid/gradient fills.
-- **Seven built-in scenes** including a monospace terminal readout, flipped
+- **Nine built-in scenes** including a monospace terminal readout, flipped
   through by hand or on a timer.
 - **Live system data** from psutil and NVML: CPU, memory, disk, network, and GPU
   load / temperature / VRAM / power.
@@ -33,7 +33,7 @@ Landscape (1920×462):
 
 ![Built-in scenes, landscape](docs/screenshots/scenes-landscape.png)
 
-The same seven scenes with the panel mounted on its side (462×1920):
+The same scenes with the panel mounted on its side (462×1920):
 
 ![Built-in scenes, portrait](docs/screenshots/scenes-portrait.png)
 
@@ -46,6 +46,8 @@ The same seven scenes with the panel mounted on its side (462×1920):
 | **Network** | Up/down throughput with rolling graphs |
 | **Clock** | Big centred time and date |
 | **Wallpaper** | Your image, GIF or video with a clock over it |
+| **CS2 HUD** | Live Counter-Strike 2 match state via Game State Integration |
+| **Claude Usage** | Claude Code session and weekly limit rings, tokens and cost |
 
 ## Quick start
 
@@ -126,6 +128,29 @@ advances automatically. Set it to `off` to leave the panel on one scene.
 A metric with no value renders as `—` rather than failing the frame. CPU
 temperature is not exposed by psutil on Windows, so `cpu.temp` needs the optional
 LibreHardwareMonitor provider (not enabled by default — it wants admin rights).
+
+#### Claude Code usage
+
+Two separate sources, and the difference matters:
+
+`claude.today.tokens` `claude.today.cost_usd` `claude.today.messages`
+`claude.today.sessions` `claude.week.*` `claude.total.*` `claude.model` are added
+up from the transcripts Claude Code writes under `~/.claude/projects`. They cover
+**this machine only**, and `cost_usd` is a notional list-price estimate — most
+Claude Code usage is billed against a subscription, not per token.
+
+`claude.limits.session.pct` and `claude.limits.week.pct` (plus `.resets_in`,
+`.resets_text`, and `claude.limits.week_sonnet.pct` / `week_opus.pct`) are the
+real server-side utilisation percentages — the same numbers `/usage` shows —
+fetched from the endpoint `/usage` itself queries, using the OAuth token Claude
+Code already stores locally. Fetching them is a metadata call and costs no tokens.
+
+That endpoint is **undocumented and throttles hard**, so the provider polls every
+5 minutes (never below 3), caches to disk across restarts, and backs off on 429.
+Disable it with `claude_limits_enabled: false` in `config.json`. When it cannot
+get a reading, `claude.limits.status_text` explains why (`NOT SIGNED IN`,
+`RATE LIMITED`, `STALE`, `OFFLINE`) and the percentages stay absent rather than
+showing a misleading zero.
 
 ### Fit modes
 

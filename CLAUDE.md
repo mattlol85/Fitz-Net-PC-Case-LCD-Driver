@@ -81,10 +81,21 @@ and its `draw()`. `is_dynamic` marks a layer as needing per-frame redraw
 polled on one background thread by `StatsRegistry` (`sources/stats.py`) and
 publish an immutable snapshot; a provider that can't read a value just omits
 that key rather than erroring, and text layers render a missing metric as `—`
-(`render/tokens.py`) rather than failing the frame. `StatsRegistry.with_defaults()`
-is where every provider gets registered; game/event-driven sources (CS2 GSI)
-that need config get added conditionally in `ui/app.py` / `__main__.py`
-instead, since they need a port/token from `AppConfig`.
+(`render/tokens.py`) rather than failing the frame. **Omitting beats guessing**
+— never publish a zero to stand in for "unknown", or a ring will confidently
+report 0% when it means "no idea". `StatsRegistry.with_defaults()` registers
+the providers that need no configuration; ones that read `AppConfig` (CS2 GSI,
+Claude limits) are added conditionally in `ui/app.py` *and* `__main__.py`
+instead — remember both entry points.
+
+**Two unrelated Claude sources, easily confused.** `sources/claude_usage.py`
+adds up local transcripts (tokens/cost/messages, this machine only, cost is a
+notional estimate). `sources/claude_limits.py` polls an **undocumented**
+endpoint for the real server-side `/usage` percentages. For the latter: the
+`User-Agent: claude-code/<version>` header is load-bearing — without it the
+endpoint throttles permanently at any interval — and there is deliberately no
+OAuth refresh flow, because rotating the refresh token could invalidate the
+user's real Claude Code login.
 
 **Orientation is one number, resolved in two places.**
 `PanelCaps.rotated(degrees)` swaps the frame geometry for scene composition,

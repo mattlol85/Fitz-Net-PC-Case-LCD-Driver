@@ -60,6 +60,7 @@ def run_headless(args: argparse.Namespace) -> int:
     import fitzlcd.render.layers  # noqa: F401 - registers the built-in layer types
     from fitzlcd.config import AppConfig, SceneLibrary, ensure_cs2_gsi_token
     from fitzlcd.engine import EngineConfig, RenderEngine
+    from fitzlcd.sources.claude_limits import ClaudeLimitsProvider
     from fitzlcd.sources.cs2gsi import Cs2GsiProvider, write_cs2_gsi_cfg
     from fitzlcd.sources.stats import StatsRegistry
 
@@ -68,7 +69,8 @@ def run_headless(args: argparse.Namespace) -> int:
     cfg_path = write_cs2_gsi_cfg(config)
     logging.getLogger(__name__).info(
         "CS2 GSI config written to %s - copy it into <Steam>/steamapps/common/"
-        "Counter-Strike Global Offensive/game/csgo/cfg/ and restart CS2", cfg_path
+        "Counter-Strike Global Offensive/game/csgo/cfg/ and restart CS2",
+        cfg_path,
     )
     library = SceneLibrary()
     library.ensure_defaults()
@@ -85,6 +87,9 @@ def run_headless(args: argparse.Namespace) -> int:
         stats.add(Cs2GsiProvider(port=config.cs2_gsi_port, token=config.cs2_gsi_token))
     except OSError as exc:
         logging.getLogger(__name__).warning("CS2 GSI listener unavailable: %s", exc)
+    if config.claude_limits_enabled:
+        stats.add(ClaudeLimitsProvider(poll_seconds=config.claude_limits_poll_seconds))
+    logging.getLogger(__name__).info("metric providers: %s", ", ".join(stats.provider_names))
     stats.start()
 
     engine = RenderEngine(
