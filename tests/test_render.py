@@ -141,6 +141,7 @@ class TestSceneModel:
         assert set(layer_types()) == {
             "text",
             "clock",
+            "donut",
             "gauge",
             "sparkline",
             "media",
@@ -352,3 +353,115 @@ class TestEncode:
         assert Transform.from_angle(270) is Transform.ROT_270
         assert Transform.from_angle(0) is Transform.NONE
         assert Transform.from_angle(360) is Transform.NONE
+
+
+class TestDonutLayer:
+    """The ring gauge. Colours are neutralised per-test so each assertion is specific."""
+
+    @staticmethod
+    def _scene(**overrides):
+        layer = {
+            "type": "donut",
+            "metric": "test.pct",
+            "rect": [0, 0, 200, 200],
+            "thickness": 20,
+            "track_color": "#00000000",  # off, so "drawn" can only mean the value arc
+        }
+        layer.update(overrides)
+        return Scene.from_dict({"background": "#000000", "layers": [layer]})
+
+    def test_draws_an_arc_for_a_present_metric(self):
+        ctx = RenderContext(*PANEL, metrics={"test.pct": 50})
+        frame = Compositor(*PANEL).compose(self._scene(), ctx)
+        assert any(p != (0, 0, 0) for p in frame.get_flattened_data()), "nothing was drawn"
+
+    def test_missing_metric_draws_nothing(self):
+        ctx = RenderContext(*PANEL, metrics={})
+        frame = Compositor(*PANEL).compose(self._scene(), ctx)
+        assert all(p == (0, 0, 0) for p in frame.get_flattened_data()), "drew without a value"
+
+    def test_zero_draws_nothing_but_the_track(self):
+        ctx = RenderContext(*PANEL, metrics={"test.pct": 0})
+        frame = Compositor(*PANEL).compose(self._scene(), ctx)
+        assert all(p == (0, 0, 0) for p in frame.get_flattened_data()), "drew a zero-width arc"
+
+    def test_track_renders_even_with_no_value(self):
+        scene = self._scene(track_color="#FFFFFFFF")
+        ctx = RenderContext(*PANEL, metrics={})
+        frame = Compositor(*PANEL).compose(scene, ctx)
+        assert any(p != (0, 0, 0) for p in frame.get_flattened_data()), "track was not drawn"
+
+    def test_thresholds_pick_the_fill_colour(self):
+        scene = self._scene(
+            color="#0000FF", warn_color="#00FF00", critical_color="#FF0000",
+            warn_value=75.0, critical_value=90.0,
+        )
+        seen = {}
+        for label, value in (("base", 10), ("warn", 80), ("crit", 95)):
+            ctx = RenderContext(*PANEL, metrics={"test.pct": value})
+            frame = Compositor(*PANEL).compose(scene, ctx)
+            pixels = [p for p in frame.get_flattened_data() if p != (0, 0, 0)]
+            # Antialiasing means the dominant channel identifies the colour.
+            seen[label] = max(pixels, key=lambda p: max(p))
+        assert seen["base"][2] > seen["base"][0], f"base should be blue-dominant, got {seen['base']}"
+        assert seen["warn"][1] > seen["warn"][0], f"warn should be green-dominant, got {seen['warn']}"
+        assert seen["crit"][0] > seen["crit"][1], f"crit should be red-dominant, got {seen['crit']}"
+
+    def test_more_value_means_more_ink(self):
+        def ink(value):
+            ctx = RenderContext(*PANEL, metrics={"test.pct": value})
+            frame = Compositor(*PANEL).compose(self._scene(), ctx)
+            return sum(1 for p in frame.get_flattened_data() if p != (0, 0, 0))
+
+        assert ink(25) < ink(75) < ink(100), "arc length should track the metric"
+
+    def test_value_is_clamped_to_the_range(self):
+        def ink(value):
+            ctx = RenderContext(*PANEL, metrics={"test.pct": value})
+            frame = Compositor(*PANEL).compose(self._scene(), ctx)
+            return sum(1 for p in frame.get_flattened_data() if p != (0, 0, 0))
+
+        assert ink(100) == ink(9999), "over-max should clamp to a full ring"
+        assert ink(-50) == 0, "under-min should clamp to empty"
+
+    def test_centre_text_expands_metric_tokens(self):
+        plain = self._scene()
+        labelled = self._scene(text="{test.pct:.0f}%", text_size=48)
+        ctx = RenderContext(*PANEL, metrics={"test.pct": 50})
+        bare = sum(1 for p in Compositor(*PANEL).compose(plain, ctx).get_flattened_data() if p != (0, 0, 0))
+        with_text = sum(
+            1 for p in Compositor(*PANEL).compose(labelled, ctx).get_flattened_data() if p != (0, 0, 0)
+        )
+        assert with_text > bare, "centre text did not render"
+
+    def test_non_square_rect_stays_circular(self):
+        """A wide box must centre a circle, not stretch an ellipse into the corners."""
+        scene = self._scene(rect=[0, 0, 400, 200], track_color="#FFFFFFFF")
+        ctx = RenderContext(*PANEL, metrics={"test.pct": 100})
+        frame = Compositor(*PANEL).compose(scene, ctx)
+        px = frame.load()
+        lit = [(x, y) for y in range(210) for x in range(410) if px[x, y] != (0, 0, 0)]
+        assert lit, "nothing was drawn"
+
+        xs = [p[0] for p in lit]
+        ys = [p[1] for p in lit]
+        span_x, span_y = max(xs) - min(xs), max(ys) - min(ys)
+        assert abs(span_x - span_y) <= 2, f"not circular: {span_x}x{span_y}"
+        # 200-across circle centred in a 400-wide box.
+        assert abs((min(xs) + max(xs)) / 2 - 200) <= 2, "circle is not centred in the rect"
+        assert span_x >= 196, f"ring should fill the short axis, spans only {span_x}"
+        assert frame.getpixel((200, 100)) == (0, 0, 0), "centre filled -- that's a pie, not a ring"
+
+    def test_degenerate_rect_is_skipped(self):
+        for rect in ([0, 0, 0, 0], [0, 0, 2, 2], [0, 0, 200, 1]):
+            ctx = RenderContext(*PANEL, metrics={"test.pct": 50})
+            frame = Compositor(*PANEL).compose(self._scene(rect=rect), ctx)
+            assert all(p == (0, 0, 0) for p in frame.get_flattened_data()), f"drew into {rect}"
+
+    def test_round_trips_through_json(self):
+        scene = self._scene(text="{test.pct:.0f}%", clockwise=False)
+        restored = Scene.from_dict(json.loads(json.dumps(scene.to_dict())))
+        assert restored.layers[0].to_dict() == scene.layers[0].to_dict()
+
+    def test_is_registered_for_the_gui(self):
+        assert "donut" in layer_types()
