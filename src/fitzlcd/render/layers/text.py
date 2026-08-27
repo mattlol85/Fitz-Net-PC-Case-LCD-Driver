@@ -10,7 +10,7 @@ from PIL import Image
 
 from fitzlcd.render import tokens
 from fitzlcd.render.colors import parse_color
-from fitzlcd.render.context import RenderContext
+from fitzlcd.render.context import RenderContext, format_clock
 from fitzlcd.render.draw import overlay
 from fitzlcd.render.geometry import ANCHORS, Length, parse_anchor, resolve_point, text_anchor
 from fitzlcd.render.scene import Field, Layer, layer_type
@@ -121,7 +121,13 @@ class ClockLayer(Layer):
 
     FIELDS: ClassVar[tuple[Field, ...]] = (
         *Layer.FIELDS,
-        Field("format", "text", "Format", "%H:%M:%S", help="strftime format"),
+        Field(
+            "format",
+            "text",
+            "Format",
+            "",
+            help="strftime format; blank follows the app's 12/24-hour setting",
+        ),
         Field("font", "text", "Font", "Segoe UI"),
         Field("size", "number", "Size", 72, minimum=6, maximum=400),
         Field("color", "color", "Color", "#FFFFFF"),
@@ -131,7 +137,9 @@ class ClockLayer(Layer):
         Field("fit", "bool", "Shrink to fit", True),
     )
 
-    format: str = "%H:%M:%S"
+    #: Blank means "follow the app's 12/24-hour preference". An explicit pattern
+    #: is a deliberate per-scene choice and always wins.
+    format: str = ""
     font: str = "Segoe UI"
     size: int = 72
     color: str = "#FFFFFF"
@@ -145,10 +153,13 @@ class ClockLayer(Layer):
         return True
 
     def describe(self) -> str:
-        return self.name or f"clock {self.format}"
+        return self.name or f"clock {self.format or 'auto'}"
 
     def draw(self, canvas: Image.Image, ctx: RenderContext) -> None:
-        text = time.strftime(self.format)
+        if self.format:
+            text = time.strftime(self.format)
+        else:
+            text = format_clock(time.localtime(), ctx.clock_24_hour)
         anchor = parse_anchor(self.anchor)
         x, y = resolve_point(self.pos, ctx.size, anchor)
 

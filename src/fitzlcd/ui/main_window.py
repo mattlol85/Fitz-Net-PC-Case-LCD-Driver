@@ -36,6 +36,7 @@ from fitzlcd.config import AppConfig, SceneLibrary, app_dir
 from fitzlcd.engine import EngineStats, RenderEngine
 from fitzlcd.render.scene import Layer, Scene, layer_types
 from fitzlcd.sources.cs2gsi import cs2_gsi_cfg_installed, find_cs2_cfg_dir, install_cs2_gsi_cfg
+from fitzlcd.sources.stats import StatsRegistry
 from fitzlcd.ui.preview import PreviewWidget
 from fitzlcd.ui.properties import PropertiesPane
 
@@ -59,11 +60,15 @@ class MainWindow(QMainWindow):
         engine: RenderEngine,
         library: SceneLibrary,
         config: AppConfig,
+        stats: StatsRegistry | None = None,
     ) -> None:
         super().__init__()
         self.engine = engine
         self.library = library
         self.config = config
+        #: Optional: only needed so the 12/24-hour toggle can reach the clock
+        #: provider that renders the ``time.now`` metric.
+        self.stats = stats
         self.scenes: list[Scene] = []
         self.current_scene: Scene | None = None
 
@@ -228,6 +233,14 @@ class MainWindow(QMainWindow):
         self.tray_box.setChecked(self.config.minimise_to_tray)
         self.tray_box.toggled.connect(self._on_tray_pref)
 
+        self.hour12_box = QCheckBox("12-hour clock")
+        self.hour12_box.setChecked(not self.config.clock_24_hour)
+        self.hour12_box.setToolTip(
+            "Show clocks as 1:30:00 PM rather than 13:30:00. Affects the "
+            "{time.now} metric and any clock layer without its own format."
+        )
+        self.hour12_box.toggled.connect(self._on_hour12)
+
         self.rotation_combo = QComboBox()
         for degrees in ROTATIONS:
             self.rotation_combo.addItem(f"{degrees}°", degrees)
@@ -253,6 +266,7 @@ class MainWindow(QMainWindow):
         row.addStretch(1)
         row.addWidget(self.cs2_btn)
         row.addSpacing(8)
+        row.addWidget(self.hour12_box)
         row.addWidget(self.autostart_box)
         row.addWidget(self.tray_box)
         return frame
@@ -486,6 +500,17 @@ class MainWindow(QMainWindow):
     def _on_tray_pref(self, enabled: bool) -> None:
         self.config.minimise_to_tray = enabled
         self.config.save()
+
+    def _on_hour12(self, enabled: bool) -> None:
+        """Checkbox reads '12-hour', config stores 24-hour; invert here."""
+        clock_24_hour = not enabled
+        self.config.clock_24_hour = clock_24_hour
+        self.config.save()
+        # Two renderers to keep in step: clock layers read the engine's context,
+        # while {time.now} is baked into the metric by the clock provider.
+        self.engine.set_clock_24_hour(clock_24_hour)
+        if self.stats is not None:
+            self.stats.set_clock_24_hour(clock_24_hour)
 
     def _refresh_cs2_button(self) -> None:
         """Update the CS2 GSI button label and tooltip to reflect installation state."""

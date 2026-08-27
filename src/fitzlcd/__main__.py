@@ -82,7 +82,7 @@ def run_headless(args: argparse.Namespace) -> int:
         print("no scenes available", file=sys.stderr)
         return 1
 
-    stats = StatsRegistry.with_defaults()
+    stats = StatsRegistry.with_defaults(clock_24_hour=config.clock_24_hour)
     try:
         stats.add(Cs2GsiProvider(port=config.cs2_gsi_port, token=config.cs2_gsi_token))
     except OSError as exc:
@@ -98,6 +98,7 @@ def run_headless(args: argparse.Namespace) -> int:
             rotation=args.rotation if args.rotation is not None else config.rotation,
             quality=args.quality or config.quality,
             max_fps=args.max_fps or config.max_fps,
+            clock_24_hour=config.clock_24_hour,
         ),
         metrics_provider=stats,
     )

@@ -24,6 +24,8 @@ import time
 from abc import ABC, abstractmethod
 from typing import Any
 
+from fitzlcd.render.context import format_clock
+
 log = logging.getLogger(__name__)
 
 POLL_INTERVAL = 1.0
@@ -135,14 +137,16 @@ class ClockProvider(MetricProvider):
 
     name = "clock"
 
-    def __init__(self) -> None:
+    def __init__(self, clock_24_hour: bool = True) -> None:
         self._started = time.time()
+        #: Public and mutable so the GUI can flip 12/24-hour without a restart.
+        self.clock_24_hour = clock_24_hour
 
     def read(self) -> dict[str, Any]:
         now = time.localtime()
         uptime = time.time() - self._started
         return {
-            "time.now": time.strftime("%H:%M:%S", now),
+            "time.now": format_clock(now, self.clock_24_hour),
             "time.date": time.strftime("%Y-%m-%d", now),
             "time.uptime": f"{int(uptime // 3600)}h{int(uptime % 3600 // 60):02d}m",
         }
@@ -183,12 +187,17 @@ class StatsRegistry:
         self._thread: threading.Thread | None = None
 
     @classmethod
-    def with_defaults(cls, interval: float = POLL_INTERVAL) -> StatsRegistry:
+    def with_defaults(
+        cls, interval: float = POLL_INTERVAL, clock_24_hour: bool = True
+    ) -> StatsRegistry:
         """Build a registry with every provider this machine can actually run."""
         from fitzlcd.sources.claude_usage import ClaudeUsageProvider
 
         registry = cls(interval)
-        for factory in (ClockProvider, CpuMemoryProvider, NvidiaProvider, ClaudeUsageProvider):
+        # The clock needs nothing from the machine, so it is built directly
+        # rather than through the tolerate-a-missing-sensor loop below.
+        registry.add(ClockProvider(clock_24_hour))
+        for factory in (CpuMemoryProvider, NvidiaProvider, ClaudeUsageProvider):
             try:
                 registry.add(factory())
             except Exception as exc:  # noqa: BLE001 - absent hardware is normal
@@ -197,6 +206,12 @@ class StatsRegistry:
 
     def add(self, provider: MetricProvider) -> None:
         self._providers.append(provider)
+
+    def set_clock_24_hour(self, clock_24_hour: bool) -> None:
+        """Flip the 12/24-hour preference on whatever clock provider is loaded."""
+        for provider in self._providers:
+            if isinstance(provider, ClockProvider):
+                provider.clock_24_hour = clock_24_hour
 
     @property
     def provider_names(self) -> list[str]:

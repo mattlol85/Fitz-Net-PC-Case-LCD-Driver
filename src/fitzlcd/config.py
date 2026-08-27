@@ -58,6 +58,10 @@ class AppConfig:
     cycle_seconds: int = 0
     minimise_to_tray: bool = True
     start_minimised: bool = False
+    #: Render clocks as 24-hour (the default) or 12-hour with an am/pm suffix.
+    #: Drives the ``time.now`` metric and every clock layer that has not been
+    #: given an explicit strftime format of its own.
+    clock_24_hour: bool = True
     window_geometry: list[int] = field(default_factory=list)
     cs2_gsi_port: int = 13001
     cs2_gsi_token: str = ""

@@ -16,8 +16,8 @@ added without touching anything above the driver layer.
 - **Any orientation.** Mount the panel at 0°, 90°, 180° or 270°; scenes are
   composed in what you actually see and the output transform follows.
 - **Composes scenes** from a stack of layers: media (image / GIF / video), text
-  with live `{cpu.load:.0f}` style metric tokens, bar gauges, sparklines, a
-  clock, and solid/gradient fills.
+  with live `{cpu.load:.0f}` style metric tokens, bar gauges, ring gauges,
+  sparklines, a clock, solid/gradient fills, and a spark mark.
 - **Nine built-in scenes** including a monospace terminal readout, flipped
   through by hand or on a timer.
 - **Live system data** from psutil and NVML: CPU, memory, disk, network, and GPU
@@ -47,7 +47,7 @@ The same scenes with the panel mounted on its side (462×1920):
 | **Clock** | Big centred time and date |
 | **Wallpaper** | Your image, GIF or video with a clock over it |
 | **CS2 HUD** | Live Counter-Strike 2 match state via Game State Integration |
-| **Claude Usage** | Claude Code session and weekly limit rings, tokens and cost |
+| **Claude Usage** | Claude Code session and weekly limit rings, tokens and cost, in Claude's own colours |
 
 ## Quick start
 
@@ -118,6 +118,18 @@ file.
 
 Prev/Next in the scenes pane or the tray menu, and a **Cycle** interval that
 advances automatically. Set it to `off` to leave the panel on one scene.
+
+### 12- or 24-hour clocks
+
+**12-hour clock** in the footer switches every clock in the app between
+`13:30:00` and `1:30:00 PM`, live — no restart. It drives the `{time.now}`
+metric and every `clock` layer whose **Format** box is blank.
+
+Blank means "follow this setting". Typing an explicit strftime pattern into a
+clock layer — `%H:%M`, `%I:%M %p`, `%A` — is a deliberate per-scene choice and
+overrides the preference, so a scene that wants one particular format keeps it
+whichever way the toggle is set. The setting persists as `clock_24_hour` in
+`config.json`.
 
 ### Metric tokens
 
