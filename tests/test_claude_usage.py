@@ -118,7 +118,11 @@ class TestClaudeUsageProvider:
         today = _now_iso()
         _write_transcript(
             claude_dir / "projects" / "proj" / "a.jsonl",
-            [_usage_record(timestamp=today, model="claude-opus-5", input_tokens=1000, output_tokens=1000)],
+            [
+                _usage_record(
+                    timestamp=today, model="claude-opus-5", input_tokens=1000, output_tokens=1000
+                )
+            ],
         )
 
         provider = ClaudeUsageProvider(root=claude_dir)

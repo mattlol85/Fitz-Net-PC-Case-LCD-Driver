@@ -9,6 +9,7 @@ import sys
 from PySide6.QtWidgets import QApplication, QSystemTrayIcon
 
 import fitzlcd.render.layers  # noqa: F401 - registers the built-in layer types
+from fitzlcd import __version__
 from fitzlcd.config import AppConfig, SceneLibrary, ensure_cs2_gsi_token
 from fitzlcd.engine import EngineConfig, RenderEngine
 from fitzlcd.sources.claude_limits import ClaudeLimitsProvider
@@ -16,6 +17,7 @@ from fitzlcd.sources.cs2gsi import Cs2GsiProvider, write_cs2_gsi_cfg
 from fitzlcd.sources.stats import StatsRegistry
 from fitzlcd.ui.main_window import MainWindow
 from fitzlcd.ui.tray import TrayIcon
+from fitzlcd.ui.updates import UpdateController
 
 log = logging.getLogger(__name__)
 
@@ -59,6 +61,7 @@ def run_gui(args=None) -> int:
 
     app = QApplication(sys.argv[:1])
     app.setApplicationName("FitzLCD")
+    app.setApplicationVersion(__version__)
     app.setQuitOnLastWindowClosed(False)  # the tray keeps the app alive
     app.setStyleSheet(DARK_QSS)
 
@@ -100,6 +103,10 @@ def run_gui(args=None) -> int:
     else:
         log.warning("no system tray available; closing the window will quit")
         app.setQuitOnLastWindowClosed(True)
+
+    # After the tray exists, so an available update can raise a notification.
+    updates = UpdateController(window.update_btn, config, parent=window, tray=tray)
+    updates.start()
 
     engine.start()
 

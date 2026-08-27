@@ -129,6 +129,28 @@ panel safely" in the README before changing anything in `engine.py` or
 `.github/workflows/python-build.yaml` runs `ruff check .` + `pytest` on every
 push/PR to `main`/`master`. `.github/workflows/publish.yml` is a manual
 `workflow_dispatch` (pick `major`/`minor`/`patch`) that bumps the version in
-`pyproject.toml`, tags, builds the EXE via `packaging/fitzlcd.spec`
-(PyInstaller, one-dir build), and attaches
+`pyproject.toml` **and `src/fitzlcd/__init__.py`**, tags, builds the EXE via
+`packaging/fitzlcd.spec` (PyInstaller, one-dir build), and attaches
 `FitzLCD-<version>-windows.zip` to a GitHub Release.
+
+`src/fitzlcd/__init__.py.__version__` is the only version the running app can
+see — there is no dist-info in the frozen build, so `importlib.metadata` raises
+there. It is rewritten by `publish.yml`; don't edit it by hand. **Job order in
+that workflow is version → build → release, and must stay that way**: the
+version is baked into the binary and `updater.check()` compares it against the
+latest release, so building before the bump ships an EXE that believes it is the
+previous version and offers itself an endless update.
+
+**Self-update never overwrites the app in-process.** The one-dir build means the
+running `FitzLCD.exe` and every DLL under `_internal` are locked by Windows.
+`updater.py` downloads the release zip, stages it under
+`%APPDATA%\FitzLCD\updates\`, refuses anything that doesn't contain
+`FitzLCD.exe` + `_internal/`, then writes a batch helper and launches it
+detached; the helper waits on our PID, `robocopy /MIR`s the staged build over
+the install directory, relaunches and deletes itself. The helper calls every
+tool by absolute `System32` path — a Git-for-Windows `find`/`sort` on PATH would
+otherwise shadow them and silently break the wait loop. Launch it with
+`CREATE_NO_WINDOW`, never `DETACHED_PROCESS`: the two flags are mutually
+exclusive and detaching leaves the helper without usable standard handles, which
+wedges its piped `tasklist`. `ui/app.py` ends in `os._exit`, so nothing hooked
+to `atexit` would ever run — the detached child is the whole mechanism.

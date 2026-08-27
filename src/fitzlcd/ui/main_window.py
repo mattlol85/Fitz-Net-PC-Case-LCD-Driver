@@ -32,6 +32,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from fitzlcd import __version__, updater
 from fitzlcd.config import AppConfig, SceneLibrary, app_dir
 from fitzlcd.engine import EngineStats, RenderEngine
 from fitzlcd.render.scene import Layer, Scene, layer_types
@@ -105,7 +106,7 @@ class MainWindow(QMainWindow):
     def _build_header(self) -> QHBoxLayout:
         row = QHBoxLayout()
 
-        title = QLabel("<b>FitzLCD</b>")
+        title = QLabel(f"<b>FitzLCD</b> <span style='color:#6b7488;'>{__version__}</span>")
         title.setStyleSheet("font-size: 16px;")
 
         self.device_chip = QLabel("searching for a panel...")
@@ -258,12 +259,20 @@ class MainWindow(QMainWindow):
         self.cs2_btn.clicked.connect(self._on_cs2_setup)
         self._refresh_cs2_button()
 
+        # Wired up by UpdateController in ui/app.py; meaningless outside the
+        # packaged build, where updates come from git/pip instead.
+        self.update_btn = QPushButton("Check for updates")
+        self.update_btn.setFixedWidth(150)
+        self.update_btn.setVisible(updater.is_frozen())
+
         row.addWidget(QLabel("Orientation"))
         row.addWidget(self.rotation_combo)
         row.addSpacing(18)
         row.addWidget(QLabel("Brightness"))
         row.addWidget(self.brightness)
         row.addStretch(1)
+        row.addWidget(self.update_btn)
+        row.addSpacing(8)
         row.addWidget(self.cs2_btn)
         row.addSpacing(8)
         row.addWidget(self.hour12_box)
@@ -530,8 +539,7 @@ class MainWindow(QMainWindow):
         else:
             self.cs2_btn.setText("CS2 GSI: Setup")
             self.cs2_btn.setToolTip(
-                "CS2 installation not found automatically.\n"
-                "Click for manual setup instructions."
+                "CS2 installation not found automatically.\n" "Click for manual setup instructions."
             )
             self.cs2_btn.setStyleSheet("color: #8892b0;")
 

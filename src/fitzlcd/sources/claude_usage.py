@@ -159,10 +159,7 @@ def _ingest_file(path: Path) -> _FileMeta:
         model = message.get("model") or ""
         p_in, p_out, p_cw, p_cr = _pricing_for(model)
         totals.cost_usd += (
-            input_tokens * p_in
-            + output_tokens * p_out
-            + cache_write * p_cw
-            + cache_read * p_cr
+            input_tokens * p_in + output_tokens * p_out + cache_write * p_cw + cache_read * p_cr
         ) / 1e6
 
         if last is None or epoch > last[0]:

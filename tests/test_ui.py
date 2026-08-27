@@ -300,3 +300,30 @@ class TestLengthEditing:
             for layer in Scene.from_dict(data).layers:
                 pane.show_layer(layer)  # must not raise
                 assert pane._layer is layer, name
+
+
+class TestUpdateButton:
+    def test_hidden_outside_the_packaged_build(self, window):
+        """Source installs update through git/pip, so the button is pointless there."""
+        assert window.update_btn.isVisibleTo(window) is False
+
+    def test_offers_the_version_once_a_check_finds_one(self, window, qt_app):
+        from fitzlcd.ui.updates import UpdateController
+        from fitzlcd.updater import Release
+
+        controller = UpdateController(window.update_btn, window.config, parent=window)
+        assert controller.button.text() == "Check for updates"
+
+        release = Release(
+            version="9.9.9",
+            notes="notes",
+            url="https://example.invalid/FitzLCD-9.9.9-windows.zip",
+            size=1,
+            page="https://example.invalid",
+        )
+        controller._on_checked((release, True))
+
+        assert controller.available is release
+        assert controller.button.text() == "Update to v9.9.9"
+        # The check is stamped so a restart doesn't immediately re-check.
+        assert window.config.update_last_check > 0
