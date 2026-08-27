@@ -30,6 +30,22 @@ RED = "#ff5f6d"
 GREEN = "#39d353"
 TERMINAL_GREEN = "#33ff66"
 
+# Claude Code's own palette, deliberately outside the shared set above. Every
+# other scene borrows that set so the library looks like one family; this scene's
+# entire job is to look like Claude Code instead, so it breaks ranks on purpose.
+# Orange is the brand accent, not a severity signal -- warnings escalate through
+# CLAUDE_WARN/CLAUDE_CRIT rather than by shifting the identity colour.
+CLAUDE_ORANGE = "#d97757"
+CLAUDE_CREAM = "#f0eee6"
+CLAUDE_DIM = "#8c8781"
+CLAUDE_INK = "#1a1917"
+CLAUDE_PANEL = "#2a2724"
+# Alpha lives in the hex: Layer.opacity is serialised and shown in the properties
+# pane, but no layer's draw() reads it.
+CLAUDE_TRACK = "#f0eee61a"
+CLAUDE_WARN = "#e8b04b"
+CLAUDE_CRIT = "#e05252"
+
 
 def _rig_stats() -> dict[str, Any]:
     """Two big readouts with gauges, plus the time.
@@ -1054,20 +1070,35 @@ def _claude_usage() -> dict[str, Any]:
     from :mod:`fitzlcd.sources.claude_usage` reading transcripts on this machine.
     Thresholds live on the rings themselves (amber at 75%, red at 90%), so the
     colour carries the warning without a second layer.
+
+    Styled to look like Claude Code rather than like the rest of the library:
+    Claude's own warm palette, monospace throughout because the thing being
+    measured is a terminal, and the spark mark turning slowly beside the title.
     """
-    session_ring = {
+    # Both rings are the same orange: they are one brand, told apart by their
+    # labels rather than by hue, which leaves colour free to mean "getting close
+    # to the limit" and nothing else.
+    ring = {
         "type": "donut",
+        "font": "mono",
+        "color": CLAUDE_ORANGE,
+        "track_color": CLAUDE_TRACK,
+        "text_color": CLAUDE_CREAM,
+        "sub_color": CLAUDE_DIM,
+        "warn_color": CLAUDE_WARN,
+        "critical_color": CLAUDE_CRIT,
+    }
+    session_ring = {
+        **ring,
         "metric": "claude.limits.session.pct",
         "text": "{claude.limits.session.pct:.0f}%",
         "sub_text": "SESSION",
-        "color": CYAN,
     }
     week_ring = {
-        "type": "donut",
+        **ring,
         "metric": "claude.limits.week.pct",
         "text": "{claude.limits.week.pct:.0f}%",
         "sub_text": "WEEK",
-        "color": GREEN,
     }
 
     wide = [
@@ -1096,52 +1127,62 @@ def _claude_usage() -> dict[str, Any]:
             "name": "session resets",
             "text": "resets {claude.limits.session.resets_text}",
             "orientation": "landscape",
-            "font": "sans",
+            "font": "mono",
             "size": 20,
             "pos": ["5%", "-8%"],
             "anchor": "bottom-left",
-            "color": DIM,
+            "color": CLAUDE_DIM,
         },
         {
             "type": "text",
             "name": "week resets",
             "text": "resets {claude.limits.week.resets_text}",
             "orientation": "landscape",
-            "font": "sans",
+            "font": "mono",
             "size": 20,
             "pos": ["20%", "-8%"],
             "anchor": "bottom-left",
-            "color": DIM,
+            "color": CLAUDE_DIM,
+        },
+        {
+            "type": "spark",
+            "name": "spark",
+            "orientation": "landscape",
+            "rect": ["36%", "6%", 38, 38],
+            "color": CLAUDE_ORANGE,
+            "arm_width": 9,
+            "taper": 0.25,
+            "spin": 12,
         },
         {
             "type": "text",
             "name": "title",
             "text": "CLAUDE CODE",
             "orientation": "landscape",
-            "font": "sans",
+            "font": "mono",
             "size": 30,
-            "pos": ["36%", "8%"],
-            "color": DIM,
+            "pos": ["39%", "8%"],
+            "color": CLAUDE_CREAM,
         },
         {
             "type": "text",
             "name": "model",
             "text": "{claude.model}",
             "orientation": "landscape",
-            "font": "sans",
+            "font": "mono",
             "size": 20,
-            "pos": ["36%", "19%"],
-            "color": DIM,
+            "pos": ["39%", "19%"],
+            "color": CLAUDE_DIM,
         },
         {
             "type": "text",
             "name": "tokens label",
             "text": "TOKENS TODAY",
             "orientation": "landscape",
-            "font": "sans",
+            "font": "mono",
             "size": 22,
             "pos": ["36%", "36%"],
-            "color": DIM,
+            "color": CLAUDE_DIM,
         },
         {
             "type": "text",
@@ -1151,17 +1192,17 @@ def _claude_usage() -> dict[str, Any]:
             "font": "mono",
             "size": 54,
             "pos": ["36%", "44%"],
-            "color": CYAN,
+            "color": CLAUDE_ORANGE,
         },
         {
             "type": "text",
             "name": "cost label",
             "text": "EST. COST TODAY",
             "orientation": "landscape",
-            "font": "sans",
+            "font": "mono",
             "size": 22,
             "pos": ["36%", "68%"],
-            "color": DIM,
+            "color": CLAUDE_DIM,
         },
         {
             "type": "text",
@@ -1171,55 +1212,55 @@ def _claude_usage() -> dict[str, Any]:
             "font": "mono",
             "size": 44,
             "pos": ["36%", "76%"],
-            "color": GREEN,
+            "color": CLAUDE_CREAM,
         },
         {
             "type": "text",
             "name": "clock",
             "text": "{time.now}",
             "orientation": "landscape",
-            "font": "sans",
+            "font": "mono",
             "size": 30,
             "pos": ["-3%", "8%"],
             "anchor": "top-right",
             "align": "right",
-            "color": BRIGHT,
+            "color": CLAUDE_CREAM,
         },
         {
             "type": "text",
             "name": "activity",
             "text": "{claude.today.messages:,} msgs  ·  {claude.today.sessions:.0f} sessions",
             "orientation": "landscape",
-            "font": "sans",
+            "font": "mono",
             "size": 24,
             "pos": ["-3%", "36%"],
             "anchor": "top-right",
             "align": "right",
-            "color": AMBER,
+            "color": CLAUDE_DIM,
         },
         {
             "type": "text",
             "name": "week summary",
             "text": "7 DAYS   {claude.week.tokens:,} tok   $ {claude.week.cost_usd:.2f}",
             "orientation": "landscape",
-            "font": "sans",
+            "font": "mono",
             "size": 20,
             "pos": ["-3%", "52%"],
             "anchor": "top-right",
             "align": "right",
-            "color": DIM,
+            "color": CLAUDE_DIM,
         },
         {
             "type": "text",
             "name": "total summary",
             "text": "ALL TIME   {claude.total.tokens:,} tok   $ {claude.total.cost_usd:.2f}",
             "orientation": "landscape",
-            "font": "sans",
+            "font": "mono",
             "size": 20,
             "pos": ["-3%", "62%"],
             "anchor": "top-right",
             "align": "right",
-            "color": DIM,
+            "color": CLAUDE_DIM,
         },
         # No per-model row here on purpose: seven_day_sonnet / seven_day_opus are
         # null on plans that do not break the weekly window down that way, so the
@@ -1229,16 +1270,27 @@ def _claude_usage() -> dict[str, Any]:
 
     tall = [
         {
+            "type": "spark",
+            "name": "spark (tall)",
+            "orientation": "portrait",
+            "rect": ["center", "1%", 38, 38],
+            "anchor": "top-center",
+            "color": CLAUDE_ORANGE,
+            "arm_width": 9,
+            "taper": 0.25,
+            "spin": 12,
+        },
+        {
             "type": "text",
             "name": "title (tall)",
             "text": "CLAUDE CODE",
             "orientation": "portrait",
-            "font": "sans",
+            "font": "mono",
             "size": 32,
-            "pos": ["center", "2%"],
+            "pos": ["center", "4%"],
             "anchor": "top-center",
             "align": "center",
-            "color": DIM,
+            "color": CLAUDE_CREAM,
         },
         {
             **session_ring,
@@ -1255,12 +1307,12 @@ def _claude_usage() -> dict[str, Any]:
             "name": "session resets (tall)",
             "text": "resets {claude.limits.session.resets_text}",
             "orientation": "portrait",
-            "font": "sans",
+            "font": "mono",
             "size": 24,
             "pos": ["center", "24%"],
             "anchor": "top-center",
             "align": "center",
-            "color": DIM,
+            "color": CLAUDE_DIM,
         },
         {
             **week_ring,
@@ -1277,22 +1329,22 @@ def _claude_usage() -> dict[str, Any]:
             "name": "week resets (tall)",
             "text": "resets {claude.limits.week.resets_text}",
             "orientation": "portrait",
-            "font": "sans",
+            "font": "mono",
             "size": 24,
             "pos": ["center", "46%"],
             "anchor": "top-center",
             "align": "center",
-            "color": DIM,
+            "color": CLAUDE_DIM,
         },
         {
             "type": "text",
             "name": "tokens label (tall)",
             "text": "TOKENS TODAY",
             "orientation": "portrait",
-            "font": "sans",
+            "font": "mono",
             "size": 26,
             "pos": ["6%", "53%"],
-            "color": DIM,
+            "color": CLAUDE_DIM,
         },
         {
             "type": "text",
@@ -1302,17 +1354,17 @@ def _claude_usage() -> dict[str, Any]:
             "font": "mono",
             "size": 58,
             "pos": ["6%", "56%"],
-            "color": CYAN,
+            "color": CLAUDE_ORANGE,
         },
         {
             "type": "text",
             "name": "cost label (tall)",
             "text": "EST. COST TODAY",
             "orientation": "portrait",
-            "font": "sans",
+            "font": "mono",
             "size": 26,
             "pos": ["6%", "63%"],
-            "color": DIM,
+            "color": CLAUDE_DIM,
         },
         {
             "type": "text",
@@ -1322,51 +1374,52 @@ def _claude_usage() -> dict[str, Any]:
             "font": "mono",
             "size": 52,
             "pos": ["6%", "66%"],
-            "color": GREEN,
+            "color": CLAUDE_CREAM,
         },
         {
             "type": "text",
             "name": "activity (tall)",
             "text": "{claude.today.messages:,} msgs\n{claude.today.sessions:.0f} sessions",
             "orientation": "portrait",
-            "font": "sans",
+            "font": "mono",
             "size": 30,
             "pos": ["6%", "74%"],
-            "color": AMBER,
+            "color": CLAUDE_DIM,
         },
+        # Stacked, not side by side. A ten-digit token count in a monospace face
+        # is ~250 px at this size, and two of those do not fit across a 462 px
+        # column -- they used to overlap in the middle.
         {
             "type": "text",
             "name": "week summary (tall)",
             "text": "7 DAYS\n{claude.week.tokens:,} tok\n$ {claude.week.cost_usd:.2f}",
             "orientation": "portrait",
-            "font": "sans",
-            "size": 26,
-            "pos": ["6%", "84%"],
-            "color": DIM,
+            "font": "mono",
+            "size": 22,
+            "pos": ["6%", "81%"],
+            "color": CLAUDE_DIM,
         },
         {
             "type": "text",
             "name": "total summary (tall)",
             "text": "ALL TIME\n{claude.total.tokens:,} tok\n$ {claude.total.cost_usd:.2f}",
             "orientation": "portrait",
-            "font": "sans",
-            "size": 26,
-            "pos": ["-6%", "84%"],
-            "anchor": "top-right",
-            "align": "right",
-            "color": DIM,
+            "font": "mono",
+            "size": 22,
+            "pos": ["6%", "87%"],
+            "color": CLAUDE_DIM,
         },
         {
             "type": "text",
             "name": "clock (tall)",
             "text": "{time.now}",
             "orientation": "portrait",
-            "font": "sans",
+            "font": "mono",
             "size": 40,
             "pos": ["center", "-2%"],
             "anchor": "bottom-center",
             "align": "center",
-            "color": BRIGHT,
+            "color": CLAUDE_CREAM,
         },
     ]
 
@@ -1378,10 +1431,10 @@ def _claude_usage() -> dict[str, Any]:
         "type": "text",
         "name": "limits status",
         "text": "{claude.limits.status_text}",
-        "font": "sans",
+        "font": "mono",
         "size": 30,
         "align": "center",
-        "color": RED,
+        "color": CLAUDE_CRIT,
         "shadow": True,
     }
     shared = [
@@ -1404,9 +1457,17 @@ def _claude_usage() -> dict[str, Any]:
     return {
         "version": 1,
         "name": "Claude Usage",
-        "fps": 2,
-        "background": INK,
-        "layers": [{"type": "solid", "color": PANEL, "color2": INK}, *wide, *tall, *shared],
+        # 10 rather than the 2 the readouts need, so the spark's turn reads as
+        # motion instead of stutter. Set the spark's "spin" to 0 and this back to
+        # 2 to restore the cheaper scene exactly.
+        "fps": 10,
+        "background": CLAUDE_INK,
+        "layers": [
+            {"type": "solid", "color": CLAUDE_PANEL, "color2": CLAUDE_INK},
+            *wide,
+            *tall,
+            *shared,
+        ],
     }
 
 

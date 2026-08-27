@@ -12,10 +12,11 @@ import fitzlcd.render.layers  # noqa: F401 - registers the built-in layer types
 from fitzlcd.render import tokens
 from fitzlcd.render.colors import INVALID_COLOR, parse_color
 from fitzlcd.render.compositor import Compositor
-from fitzlcd.render.context import RenderContext
+from fitzlcd.render.context import RenderContext, format_clock
 from fitzlcd.render.encode import Transform, apply_transform, encode_jpeg, to_image
 from fitzlcd.render.fit import Fit, fit_image
 from fitzlcd.render.scene import Layer, Scene, SceneError, layer_types
+from fitzlcd.sources.stats import ClockProvider, StatsRegistry
 
 PANEL = (1920, 462)
 
@@ -146,6 +147,7 @@ class TestSceneModel:
             "sparkline",
             "media",
             "solid",
+            "spark",
             "cs2_hit_timeline",
             "cs2_hit_flash",
         }
@@ -471,6 +473,116 @@ class TestDonutLayer:
 
     def test_round_trips_through_json(self):
         scene = self._scene(text="{test.pct:.0f}%", clockwise=False)
+        restored = Scene.from_dict(json.loads(json.dumps(scene.to_dict())))
+        assert restored.layers[0].to_dict() == scene.layers[0].to_dict()
+
+
+class TestClockFormatting:
+    """The app-wide 12/24-hour preference, and the clock layer that follows it."""
+
+    NOON = time.struct_time((2026, 8, 26, 12, 5, 9, 2, 238, 0))
+    MIDNIGHT = time.struct_time((2026, 8, 26, 0, 5, 9, 2, 238, 0))
+    EVENING = time.struct_time((2026, 8, 26, 21, 30, 0, 2, 238, 0))
+    MORNING = time.struct_time((2026, 8, 26, 9, 30, 0, 2, 238, 0))
+
+    def test_24_hour_is_the_default(self):
+        assert format_clock(self.EVENING) == "21:30:00"
+
+    def test_12_hour_uses_am_pm(self):
+        assert format_clock(self.EVENING, clock_24_hour=False) == "9:30:00 PM"
+        assert format_clock(self.MORNING, clock_24_hour=False) == "9:30:00 AM"
+
+    def test_12_hour_strips_the_padding_zero_only_from_the_hour(self):
+        """'09:30' reads as a timer; a wall clock says '9:30'. Minutes keep theirs."""
+        assert format_clock(self.MORNING, clock_24_hour=False).startswith("9:30:00")
+
+    def test_noon_and_midnight_do_not_become_zero(self):
+        assert format_clock(self.NOON, clock_24_hour=False) == "12:05:09 PM"
+        assert format_clock(self.MIDNIGHT, clock_24_hour=False) == "12:05:09 AM"
+
+    def test_blank_format_follows_the_context(self):
+        scene = Scene.from_dict({"background": "#000000", "layers": [{"type": "clock"}]})
+        both = set()
+        for preference in (True, False):
+            ctx = RenderContext(*PANEL, clock_24_hour=preference)
+            both.add(Compositor(*PANEL).compose(scene, ctx).tobytes())
+        assert len(both) == 2, "the 12/24-hour preference did not reach the clock layer"
+
+    def test_an_explicit_format_overrides_the_preference(self):
+        """A format typed into a scene is a deliberate choice and must win."""
+        scene = Scene.from_dict(
+            {"background": "#000000", "layers": [{"type": "clock", "format": "%H"}]}
+        )
+        rendered = {
+            Compositor(*PANEL).compose(scene, RenderContext(*PANEL, clock_24_hour=p)).tobytes()
+            for p in (True, False)
+        }
+        assert len(rendered) == 1, "an explicit format should ignore the preference"
+
+    def test_clock_provider_honours_the_preference(self):
+        assert ClockProvider(clock_24_hour=True).read()["time.now"].count(":") == 2
+        assert ClockProvider(clock_24_hour=False).read()["time.now"].endswith(("AM", "PM"))
+
+    def test_registry_can_flip_the_provider_live(self):
+        registry = StatsRegistry.with_defaults(clock_24_hour=True)
+        registry.set_clock_24_hour(False)
+        clocks = [p for p in registry._providers if isinstance(p, ClockProvider)]
+        assert clocks and all(not p.clock_24_hour for p in clocks)
+
+
+class TestSparkLayer:
+    """The Claude mark. Drawn as polygons precisely so it needs no particular font."""
+
+    @staticmethod
+    def _scene(**overrides):
+        layer = {"type": "spark", "rect": [0, 0, 200, 200], "color": "#FFFFFF"}
+        layer.update(overrides)
+        return Scene.from_dict({"background": "#000000", "layers": [layer]})
+
+    @staticmethod
+    def _ink(scene, time=0.0):
+        ctx = RenderContext(*PANEL, time=time)
+        frame = Compositor(*PANEL).compose(scene, ctx)
+        return sum(1 for p in frame.get_flattened_data() if p != (0, 0, 0))
+
+    def test_draws_inside_its_rect_and_nowhere_else(self):
+        frame = Compositor(*PANEL).compose(self._scene(), RenderContext(*PANEL))
+        px = frame.load()
+        lit = [(x, y) for y in range(PANEL[1]) for x in range(PANEL[0]) if px[x, y] != (0, 0, 0)]
+        assert lit, "nothing was drawn"
+        assert max(x for x, _ in lit) < 200, "spilled past the right edge of its rect"
+        assert max(y for _, y in lit) < 200, "spilled past the bottom of its rect"
+
+    def test_more_arms_means_more_ink(self):
+        assert self._ink(self._scene(arms=3)) < self._ink(self._scene(arms=10))
+
+    def test_taper_narrows_the_tips(self):
+        assert self._ink(self._scene(taper=0.1)) < self._ink(self._scene(taper=1.0))
+
+    def test_inner_hole_removes_the_centre(self):
+        frame = Compositor(*PANEL).compose(self._scene(inner=0.5), RenderContext(*PANEL))
+        assert frame.getpixel((100, 100)) == (0, 0, 0), "inner hole was filled"
+
+    def test_a_still_spark_is_not_dynamic(self):
+        """A static mark must not force the whole scene to re-encode every tick."""
+        assert self._scene(spin=0).layers[0].is_dynamic is False
+        assert self._scene(spin=12).layers[0].is_dynamic is True
+
+    def test_spin_changes_the_frame_over_time(self):
+        scene = self._scene(spin=90, arms=3)
+        early = Compositor(*PANEL).compose(scene, RenderContext(*PANEL, time=0.0)).tobytes()
+        later = Compositor(*PANEL).compose(scene, RenderContext(*PANEL, time=1.0)).tobytes()
+        assert early != later, "spin did not move the mark"
+
+    def test_transparent_colour_draws_nothing(self):
+        assert self._ink(self._scene(color="#FFFFFF00")) == 0
+
+    def test_degenerate_rect_is_skipped(self):
+        for rect in ([0, 0, 0, 0], [0, 0, 2, 2], [0, 0, 200, 1]):
+            assert self._ink(self._scene(rect=rect)) == 0, f"drew into {rect}"
+
+    def test_round_trips_through_json(self):
+        scene = self._scene(arms=8, taper=0.2, spin=12, inner=0.15)
         restored = Scene.from_dict(json.loads(json.dumps(scene.to_dict())))
         assert restored.layers[0].to_dict() == scene.layers[0].to_dict()
 

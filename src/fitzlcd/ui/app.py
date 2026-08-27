@@ -62,7 +62,7 @@ def run_gui(args=None) -> int:
     app.setQuitOnLastWindowClosed(False)  # the tray keeps the app alive
     app.setStyleSheet(DARK_QSS)
 
-    stats = StatsRegistry.with_defaults()
+    stats = StatsRegistry.with_defaults(clock_24_hour=config.clock_24_hour)
     try:
         stats.add(Cs2GsiProvider(port=config.cs2_gsi_port, token=config.cs2_gsi_token))
     except OSError as exc:
@@ -78,12 +78,13 @@ def run_gui(args=None) -> int:
             rotation=config.rotation,
             quality=config.quality,
             max_fps=config.max_fps,
+            clock_24_hour=config.clock_24_hour,
         ),
         metrics_provider=stats,
     )
 
     library = SceneLibrary()
-    window = MainWindow(engine, library, config)
+    window = MainWindow(engine, library, config, stats=stats)
 
     tray = None
     if QSystemTrayIcon.isSystemTrayAvailable():

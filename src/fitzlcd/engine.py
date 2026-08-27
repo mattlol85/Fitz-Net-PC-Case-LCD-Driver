@@ -72,6 +72,9 @@ class EngineConfig:
     max_fps: int | None = None  # overrides the panel's own cap when lower
     reconnect: bool = True
     preview_every: int = 1  # emit 1 in N frames to the preview callback
+    #: Passed to every RenderContext; clock layers with no explicit format
+    #: follow it.
+    clock_24_hour: bool = True
 
 
 @dataclass
@@ -146,6 +149,17 @@ class RenderEngine:
             self._compositor = None
             self._last_payload = None
         self._publish_caps()
+        self._wake.set()
+
+    def set_clock_24_hour(self, clock_24_hour: bool) -> None:
+        """Switch clock layers between 24- and 12-hour without a restart."""
+        if clock_24_hour == self.config.clock_24_hour:
+            return
+        with self._lock:
+            self.config.clock_24_hour = clock_24_hour
+            # A scene whose only moving part is the clock is otherwise identical
+            # frame to frame, and the dirty-frame check would swallow the change.
+            self._last_payload = None
         self._wake.set()
 
     def set_paused(self, paused: bool) -> None:
@@ -223,6 +237,7 @@ class RenderEngine:
             time=time.perf_counter() - self._scene_started,
             frame_index=self._frame_index,
             metrics=dict(self._metrics_provider() if self._metrics_provider else {}),
+            clock_24_hour=self.config.clock_24_hour,
         )
         image = self._compositor.compose(scene, ctx)
         self._frame_index += 1

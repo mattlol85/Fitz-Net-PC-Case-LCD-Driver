@@ -8,6 +8,7 @@ dominate the render budget).
 from __future__ import annotations
 
 import logging
+import time
 from dataclasses import dataclass, field
 from functools import lru_cache
 from pathlib import Path
@@ -141,6 +142,27 @@ def load_font(name: str, size: int) -> ImageFont.FreeTypeFont:
     return ImageFont.load_default(size)
 
 
+#: strftime patterns behind the app's 12/24-hour preference. Kept here, next to
+#: the flag itself, because two unrelated places render the wall clock -- the
+#: ``time.now`` metric in :mod:`fitzlcd.sources.stats` and the ``clock`` layer --
+#: and they must not drift apart.
+CLOCK_24_HOUR = "%H:%M:%S"
+CLOCK_12_HOUR = "%I:%M:%S %p"
+
+
+def format_clock(when: time.struct_time, clock_24_hour: bool = True) -> str:
+    """Render ``when`` in the app's preferred 12- or 24-hour style.
+
+    ``%I`` zero-pads the hour, which reads as a digital-timer "09:42 PM" rather
+    than a wall clock. Neither ``%-I`` nor ``%#I`` is portable, so trim the pad
+    by hand.
+    """
+    if clock_24_hour:
+        return time.strftime(CLOCK_24_HOUR, when)
+    text = time.strftime(CLOCK_12_HOUR, when)
+    return text[1:] if text.startswith("0") else text
+
+
 @dataclass
 class RenderContext:
     """Everything a layer needs to draw one frame."""
@@ -150,6 +172,9 @@ class RenderContext:
     time: float = 0.0  # seconds since the scene started
     frame_index: int = 0
     metrics: dict[str, Any] = field(default_factory=dict)
+    #: App-wide 12/24-hour preference, honoured by clock layers that carry no
+    #: explicit format of their own.
+    clock_24_hour: bool = True
 
     @property
     def size(self) -> tuple[int, int]:
