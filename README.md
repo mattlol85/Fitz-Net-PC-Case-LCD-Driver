@@ -207,8 +207,41 @@ Every push and PR to `main`/`master` runs lint + tests via
 [`python-build.yaml`](.github/workflows/python-build.yaml). Cutting a release is
 manual: run the [`Publish Release`](.github/workflows/publish.yml) workflow from
 the Actions tab, pick `major` / `minor` / `patch`, and it bumps the version in
-`pyproject.toml`, tags it, builds the PyInstaller EXE, and attaches
-`FitzLCD-<version>-windows.zip` to a new GitHub Release.
+`pyproject.toml` **and `src/fitzlcd/__init__.py`**, tags it, builds the
+PyInstaller EXE from that tag, and attaches `FitzLCD-<version>-windows.zip` to a
+new GitHub Release.
+
+The bump happens *before* the build on purpose: `__version__` is baked into the
+binary and is what the in-app updater compares against the latest release. Build
+first and you ship a binary that thinks it's the previous version and offers
+itself an endless update.
+
+## Updating
+
+The packaged build updates itself. It asks GitHub for the latest release about
+eight seconds after start-up and once a day after that; when there's a newer
+one, the tray pops a notification and the footer button turns into
+**Update to v1.2.0**. Click it, confirm, and FitzLCD downloads the release,
+verifies it, closes, swaps itself over and starts again — a few seconds, no zip
+to handle.
+
+The swap is done by a small batch file rather than by FitzLCD itself: the build
+is one-dir, so the running `FitzLCD.exe` and everything under `_internal` are
+locked by Windows for as long as the app is alive. The helper waits for the
+process to exit, mirrors the new build over the install directory, relaunches,
+and deletes itself. If it ever goes wrong it leaves `apply.log` in
+`%APPDATA%\FitzLCD\updates\`.
+
+Two things to know:
+
+- **Running from source?** None of this applies — the button is hidden and no
+  check is made. Update with `git pull` instead.
+- **Installed under `Program Files`?** FitzLCD won't try to update itself
+  somewhere it can't write without elevation. It offers the release page
+  instead. Keeping the app somewhere writable avoids this.
+
+Set `"update_check_enabled": false` in `%APPDATA%\FitzLCD\config.json` to stop
+the automatic checks; the button still works on demand.
 
 ## Architecture
 

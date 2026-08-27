@@ -70,6 +70,13 @@ class AppConfig:
     #: Seconds between polls. Floor-clamped to 180 s by the provider: the endpoint
     #: throttles hard, and this bucket is shared with your own Claude Code.
     claude_limits_poll_seconds: int = 300
+    #: Look for a newer release on launch and once a day. Only ever does
+    #: anything in the packaged build; source installs update through git/pip.
+    update_check_enabled: bool = True
+    #: Unix time of the last completed check, so a restart doesn't re-check.
+    update_last_check: float = 0.0
+    #: A release the user chose to skip; it stops prompting until a newer one.
+    update_skipped_version: str = ""
 
     @classmethod
     def load(cls, path: Path | None = None) -> AppConfig:
