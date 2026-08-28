@@ -208,8 +208,16 @@ Every push and PR to `main`/`master` runs lint + tests via
 manual: run the [`Publish Release`](.github/workflows/publish.yml) workflow from
 the Actions tab, pick `major` / `minor` / `patch`, and it bumps the version in
 `pyproject.toml` **and `src/fitzlcd/__init__.py`**, tags it, builds the
-PyInstaller EXE from that tag, and attaches `FitzLCD-<version>-windows.zip` to a
-new GitHub Release.
+PyInstaller EXE from that tag, wraps it in an Inno Setup installer
+(`packaging/fitzlcd.iss`), and attaches both `FitzLCD-<version>-Setup.exe` and
+`FitzLCD-<version>-windows.zip` to a new GitHub Release.
+
+The installer defaults to a per-user install under
+`%LOCALAPPDATA%\Programs\FitzLCD` so the install directory stays writable and
+self-update keeps working; choosing an all-users / `Program Files` install is
+offered but then self-update steps aside to the release page. Its
+"start at sign-in" checkbox writes the same `HKCU\...\Run` value as the tray
+toggle. See [`docs/installer-plan.md`](docs/installer-plan.md).
 
 The bump happens *before* the build on purpose: `__version__` is baked into the
 binary and is what the in-app updater compares against the latest release. Build

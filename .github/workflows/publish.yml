@@ -54,11 +54,28 @@ jobs:
       - name: 🗜️ Zip the standalone build
         run: Compress-Archive -Path dist/FitzLCD/* -DestinationPath FitzLCD-windows.zip
 
-      - name: 📤 Upload EXE artifact
+      - name: 📦 Build the installer with Inno Setup
+        # iscc ships on the windows-latest image; install it if a future image
+        # drops it. The one-dir build under dist/FitzLCD is the payload; the
+        # version comes from the tag.
+        env:
+          APP_VERSION: ${{ needs.version.outputs.new-version-no-v }}
+        run: |
+          if (-not (Get-Command iscc -ErrorAction SilentlyContinue)) {
+            choco install innosetup --no-progress -y
+          }
+          iscc packaging/fitzlcd.iss /DMyAppVersion=$env:APP_VERSION
+
+      - name: 🗜️ Rename installer to the plain artifact name
+        run: Move-Item dist/installer/FitzLCD-*-Setup.exe FitzLCD-windows-Setup.exe
+
+      - name: 📤 Upload build artifact
         uses: actions/upload-artifact@v6
         with:
           name: fitzlcd-exe
-          path: FitzLCD-windows.zip
+          path: |
+            FitzLCD-windows.zip
+            FitzLCD-windows-Setup.exe
           retention-days: 30
 
   version:
@@ -194,7 +211,7 @@ jobs:
           name: fitzlcd-exe
           path: downloaded-zip
 
-      - name: 🔄 Rename zip to release version
+      - name: 🔄 Rename assets to the release version
         id: final_zip
         env:
           NEW_VERSION_NO_V: ${{ needs.version.outputs.new-version-no-v }}
@@ -202,8 +219,13 @@ jobs:
           NEW_NAME="FitzLCD-${NEW_VERSION_NO_V}-windows.zip"
           NEW_PATH="downloaded-zip/$NEW_NAME"
           mv "downloaded-zip/FitzLCD-windows.zip" "$NEW_PATH"
+          SETUP_NAME="FitzLCD-${NEW_VERSION_NO_V}-Setup.exe"
+          SETUP_PATH="downloaded-zip/$SETUP_NAME"
+          mv "downloaded-zip/FitzLCD-windows-Setup.exe" "$SETUP_PATH"
           echo "zip-path=$NEW_PATH" >> $GITHUB_OUTPUT
           echo "zip-name=$NEW_NAME" >> $GITHUB_OUTPUT
+          echo "setup-path=$SETUP_PATH" >> $GITHUB_OUTPUT
+          echo "setup-name=$SETUP_NAME" >> $GITHUB_OUTPUT
 
       - name: 📦 Create GitHub Release
         env:
@@ -213,6 +235,8 @@ jobs:
           EMOJI: ${{ needs.version.outputs.emoji }}
           ZIP_NAME: ${{ steps.final_zip.outputs.zip-name }}
           ZIP_PATH: ${{ steps.final_zip.outputs.zip-path }}
+          SETUP_NAME: ${{ steps.final_zip.outputs.setup-name }}
+          SETUP_PATH: ${{ steps.final_zip.outputs.setup-path }}
         run: |
           NOTES_FILE=$(mktemp)
           {
@@ -221,8 +245,9 @@ jobs:
             echo "- Version increment: $INCREMENT"
             echo "- Released by: ${{ github.actor }}"
             echo ""
-            echo "### 📦 Artifact"
-            echo "- $ZIP_NAME (standalone Windows build - unzip and run FitzLCD.exe)"
+            echo "### 📦 Artifacts"
+            echo "- $SETUP_NAME (Windows installer - recommended)"
+            echo "- $ZIP_NAME (standalone build - unzip and run FitzLCD.exe)"
             echo ""
             echo "> Already running FitzLCD? It will offer this update in-app."
           } > "$NOTES_FILE"
@@ -232,4 +257,5 @@ jobs:
             --title "$EMOJI Release $NEW_VERSION" \
             --notes-file "$NOTES_FILE" \
             --generate-notes \
-            "$ZIP_PATH"
+            "$ZIP_PATH" \
+            "$SETUP_PATH"
