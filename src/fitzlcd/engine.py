@@ -191,7 +191,13 @@ class RenderEngine:
         attempt = 0
         while not self._stop.is_set():
             if self._panel is None:
-                if not self._connect():
+                try:
+                    connected = self._connect()
+                except Exception as exc:  # noqa: BLE001 - a bad driver must not kill the loop
+                    log.exception("connect attempt failed: %s", exc)
+                    self._update_stats(connected=False, last_error=str(exc))
+                    connected = False
+                if not connected:
                     delay = RECONNECT_BACKOFF[min(attempt, len(RECONNECT_BACKOFF) - 1)]
                     attempt += 1
                     if not self.config.reconnect:
