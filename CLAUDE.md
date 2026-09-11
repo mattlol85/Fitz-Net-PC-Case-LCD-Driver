@@ -130,8 +130,14 @@ panel safely" in the README before changing anything in `engine.py` or
 push/PR to `main`/`master`. `.github/workflows/publish.yml` is a manual
 `workflow_dispatch` (pick `major`/`minor`/`patch`) that bumps the version in
 `pyproject.toml` **and `src/fitzlcd/__init__.py`**, tags, builds the EXE via
-`packaging/fitzlcd.spec` (PyInstaller, one-dir build), and attaches
-`FitzLCD-<version>-windows.zip` to a GitHub Release.
+`packaging/fitzlcd.spec` (PyInstaller, one-dir build), wraps it in an Inno Setup
+installer (`packaging/fitzlcd.iss`, compiled with `iscc` — preinstalled on the
+runner), and attaches both `FitzLCD-<version>-Setup.exe` and
+`FitzLCD-<version>-windows.zip` to a GitHub Release. The installer defaults to a
+per-user install (`%LOCALAPPDATA%\Programs\FitzLCD`) so the self-updater's
+writable-install-dir check keeps passing; the zip is still the asset the
+self-updater consumes (`updater._ASSET_RE`), so it must keep shipping. Rationale
+and decisions: `docs/installer-plan.md`.
 
 `src/fitzlcd/__init__.py.__version__` is the only version the running app can
 see — there is no dist-info in the frozen build, so `importlib.metadata` raises
