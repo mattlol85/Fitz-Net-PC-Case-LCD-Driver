@@ -25,6 +25,7 @@ from fitzlcd.panels.base import (
     Panel,
     PanelBusyError,
     PanelCaps,
+    PanelError,
     PanelHandle,
     PanelUnavailableError,
 )
@@ -124,9 +125,17 @@ class DS916Panel(Panel):
             info = self._read_info()
             self._caps = self._caps_from_info(info)
             log.info("opened %s: %s fw %s", self.address, self._caps.model, self._caps.firmware)
-        except Exception:
+        except PanelError:
             self.close()
             raise
+        except Exception as exc:
+            # A device mid-enumeration (e.g. a front-panel USB header, which
+            # settles slower than a rear motherboard port) can throw a raw
+            # pyserial error here. That must still come out as a PanelError -
+            # anything else escapes the engine's retry loop and kills it for
+            # good instead of triggering a reconnect.
+            self.close()
+            raise PanelUnavailableError(f"failed to open {self.address}: {exc}") from exc
 
     def close(self) -> None:
         self._caps = None
@@ -178,9 +187,12 @@ class DS916Panel(Panel):
     def _wake_locked(self) -> None:
         """Send START. Without it the panel ignores frame data."""
         ser = self._require_port()
-        ser.write(proto.build_packet(proto.Command.START))
-        time.sleep(0.15)
-        ser.read(64)  # drain the ack
+        try:
+            ser.write(proto.build_packet(proto.Command.START))
+            time.sleep(0.15)
+            ser.read(64)  # drain the ack
+        except serial.SerialException as exc:
+            raise PanelUnavailableError(f"wake failed on {self.address}: {exc}") from exc
         self._awake = True
 
     def _read_info(self, timeout: float = 2.0) -> dict:

@@ -47,17 +47,27 @@ def run_gui(args=None) -> int:
         "Counter-Strike Global Offensive/game/csgo/cfg/ and restart CS2",
         cfg_path,
     )
+
+    # CLI overrides are for this session only. They must never land on `config`
+    # itself: MainWindow holds that same object and calls config.save() during
+    # ordinary startup (selecting the initial scene alone triggers one), which
+    # would silently bake a one-off `--panel COM5`-style debugging flag into
+    # the user's permanent settings.
+    panel = config.panel
+    quality = config.quality
+    max_fps = config.max_fps
+    rotation = config.rotation
     if args is not None:
         if getattr(args, "panel", None):
-            config.panel = args.panel
+            panel = args.panel
         if getattr(args, "quality", None):
-            config.quality = args.quality
+            quality = args.quality
         if getattr(args, "max_fps", None):
-            config.max_fps = args.max_fps
+            max_fps = args.max_fps
         if getattr(args, "scene", None):
             config.active_scene = args.scene
         if getattr(args, "rotation", None) is not None:
-            config.rotation = args.rotation
+            rotation = args.rotation
 
     app = QApplication(sys.argv[:1])
     app.setApplicationName("FitzLCD")
@@ -77,10 +87,10 @@ def run_gui(args=None) -> int:
 
     engine = RenderEngine(
         EngineConfig(
-            panel=config.panel,
-            rotation=config.rotation,
-            quality=config.quality,
-            max_fps=config.max_fps,
+            panel=panel,
+            rotation=rotation,
+            quality=quality,
+            max_fps=max_fps,
             clock_24_hour=config.clock_24_hour,
         ),
         metrics_provider=stats,
