@@ -61,6 +61,22 @@ jobs:
           path: FitzLCD-windows.zip
           retention-days: 30
 
+      - name: 🧰 Install Inno Setup
+        run: choco install innosetup -y --no-progress
+
+      - name: 🛠️ Build Windows installer
+        env:
+          APP_VERSION: ${{ needs.version.outputs.new-version-no-v }}
+        run: |
+          & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" packaging\installer.iss "/DMyAppVersion=$env:APP_VERSION"
+
+      - name: 📤 Upload installer artifact
+        uses: actions/upload-artifact@v6
+        with:
+          name: fitzlcd-installer
+          path: dist/installer/FitzLCD-*-Setup.exe
+          retention-days: 30
+
   version:
     name: 🏷️ Version & Tag
     runs-on: ubuntu-latest
@@ -194,6 +210,12 @@ jobs:
           name: fitzlcd-exe
           path: downloaded-zip
 
+      - name: 📥 Download installer artifact
+        uses: actions/download-artifact@v7
+        with:
+          name: fitzlcd-installer
+          path: downloaded-installer
+
       - name: 🔄 Rename zip to release version
         id: final_zip
         env:
@@ -209,11 +231,14 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           NEW_VERSION: ${{ needs.version.outputs.new-version }}
+          NEW_VERSION_NO_V: ${{ needs.version.outputs.new-version-no-v }}
           INCREMENT: ${{ needs.version.outputs.increment-type }}
           EMOJI: ${{ needs.version.outputs.emoji }}
           ZIP_NAME: ${{ steps.final_zip.outputs.zip-name }}
           ZIP_PATH: ${{ steps.final_zip.outputs.zip-path }}
         run: |
+          INSTALLER_NAME="FitzLCD-${NEW_VERSION_NO_V}-Setup.exe"
+          INSTALLER_PATH="downloaded-installer/$INSTALLER_NAME"
           NOTES_FILE=$(mktemp)
           {
             echo "## $EMOJI Release"
@@ -221,8 +246,9 @@ jobs:
             echo "- Version increment: $INCREMENT"
             echo "- Released by: ${{ github.actor }}"
             echo ""
-            echo "### 📦 Artifact"
-            echo "- $ZIP_NAME (standalone Windows build - unzip and run FitzLCD.exe)"
+            echo "### 📦 Artifacts"
+            echo "- $INSTALLER_NAME (classic installer - pick your install folder, adds Start Menu/uninstaller entries)"
+            echo "- $ZIP_NAME (portable standalone build - unzip and run FitzLCD.exe)"
             echo ""
             echo "> Already running FitzLCD? It will offer this update in-app."
           } > "$NOTES_FILE"
@@ -232,4 +258,5 @@ jobs:
             --title "$EMOJI Release $NEW_VERSION" \
             --notes-file "$NOTES_FILE" \
             --generate-notes \
-            "$ZIP_PATH"
+            "$ZIP_PATH" \
+            "$INSTALLER_PATH"

@@ -49,6 +49,19 @@ The same scenes with the panel mounted on its side (462×1920):
 | **CS2 HUD** | Live Counter-Strike 2 match state via Game State Integration |
 | **Claude Usage** | Claude Code session and weekly limit rings, tokens and cost, in Claude's own colours |
 
+## Installing
+
+Grab the latest [release](https://github.com/mattlol85/Fitz-Net-PC-Case-LCD-Driver/releases/latest):
+
+- **`FitzLCD-<version>-Setup.exe`** — classic installer. Pick an install
+  folder (defaults to `%LocalAppData%\Programs\FitzLCD`, no admin needed),
+  get Start Menu shortcuts and a proper uninstaller in
+  "Add or remove programs".
+- **`FitzLCD-<version>-windows.zip`** — portable build. Unzip anywhere and run
+  `FitzLCD.exe`.
+
+Either way the app updates itself afterwards — see [Updating](#updating).
+
 ## Quick start
 
 ```powershell
@@ -208,8 +221,10 @@ Every push and PR to `main`/`master` runs lint + tests via
 manual: run the [`Publish Release`](.github/workflows/publish.yml) workflow from
 the Actions tab, pick `major` / `minor` / `patch`, and it bumps the version in
 `pyproject.toml` **and `src/fitzlcd/__init__.py`**, tags it, builds the
-PyInstaller EXE from that tag, and attaches `FitzLCD-<version>-windows.zip` to a
-new GitHub Release.
+PyInstaller EXE from that tag, and attaches two artifacts to a new GitHub
+Release: the portable `FitzLCD-<version>-windows.zip` and the classic
+`FitzLCD-<version>-Setup.exe` installer built from
+[`packaging/installer.iss`](packaging/installer.iss) via Inno Setup.
 
 The bump happens *before* the build on purpose: `__version__` is baked into the
 binary and is what the in-app updater compares against the latest release. Build
@@ -218,7 +233,10 @@ itself an endless update.
 
 ## Updating
 
-The packaged build updates itself. It asks GitHub for the latest release about
+The packaged build updates itself, whether it was set up with the installer or
+unzipped by hand — the update always downloads the portable zip and swaps
+files in place inside whatever folder `FitzLCD.exe` is already running from,
+no reinstall required. It asks GitHub for the latest release about
 eight seconds after start-up and once a day after that; when there's a newer
 one, the tray pops a notification and the footer button turns into
 **Update to v1.2.0**. Click it, confirm, and FitzLCD downloads the release,
@@ -236,9 +254,11 @@ Two things to know:
 
 - **Running from source?** None of this applies — the button is hidden and no
   check is made. Update with `git pull` instead.
-- **Installed under `Program Files`?** FitzLCD won't try to update itself
-  somewhere it can't write without elevation. It offers the release page
-  instead. Keeping the app somewhere writable avoids this.
+- **Installed under `Program Files`?** The installer defaults to a per-user,
+  no-admin location (`%LocalAppData%\Programs\FitzLCD`) precisely so this
+  doesn't come up, but if you picked `Program Files` during setup — or moved
+  the app there afterwards — FitzLCD won't try to update itself somewhere it
+  can't write without elevation. It offers the release page instead.
 
 Set `"update_check_enabled": false` in `%APPDATA%\FitzLCD\config.json` to stop
 the automatic checks; the button still works on demand.

@@ -130,8 +130,24 @@ panel safely" in the README before changing anything in `engine.py` or
 push/PR to `main`/`master`. `.github/workflows/publish.yml` is a manual
 `workflow_dispatch` (pick `major`/`minor`/`patch`) that bumps the version in
 `pyproject.toml` **and `src/fitzlcd/__init__.py`**, tags, builds the EXE via
-`packaging/fitzlcd.spec` (PyInstaller, one-dir build), and attaches
-`FitzLCD-<version>-windows.zip` to a GitHub Release.
+`packaging/fitzlcd.spec` (PyInstaller, one-dir build), then produces two
+release assets from that same `dist/FitzLCD/` output and attaches both to a
+GitHub Release: `FitzLCD-<version>-windows.zip` (portable, unzip-and-run) and
+`FitzLCD-<version>-Setup.exe` (classic installer, built by compiling
+`packaging/installer.iss` with Inno Setup — `ISCC.exe packaging\installer.iss
+/DMyAppVersion=<version>`).
+
+**The installer's default install directory is load-bearing, not cosmetic.**
+It installs per-user to `%LocalAppData%\Programs\FitzLCD` with
+`PrivilegesRequired=lowest` (no UAC) specifically so the existing self-update
+flow below keeps working unmodified — that flow assumes it can write to its
+own install directory without elevating. The in-app auto-updater was
+deliberately *not* changed to fetch/run the installer; it still only ever
+looks for the `-windows.zip` asset (`updater._ASSET_RE`) and updates in place
+regardless of whether the app was set up via the installer or unzipped by
+hand. If you ever change the installer's default directory to somewhere that
+needs admin (e.g. `Program Files`), the self-update path breaks for anyone
+who accepts that default — see `updater.install_writable()`.
 
 `src/fitzlcd/__init__.py.__version__` is the only version the running app can
 see — there is no dist-info in the frozen build, so `importlib.metadata` raises
