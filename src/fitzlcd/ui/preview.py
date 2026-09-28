@@ -9,12 +9,16 @@ touch widgets from the render loop.
 from __future__ import annotations
 
 from PIL import Image
-from PySide6.QtCore import Qt, Signal
-from PySide6.QtGui import QColor, QImage, QPainter, QPen, QPixmap
+from PySide6.QtCore import QRect, QRectF, QSize, Qt, Signal
+from PySide6.QtGui import QColor, QImage, QPainter, QPainterPath, QPen, QPixmap
 from PySide6.QtWidgets import QSizePolicy, QWidget
+
+from fitzlcd.ui.theme import COLORS
 
 #: Upper bound on the preview strip, in pixels.
 MAX_PREVIEW_HEIGHT = 340
+#: Corner rounding of the drawn frame, like the bezel of a real screen.
+CORNER_RADIUS = 6
 
 
 def pil_to_qimage(image: Image.Image) -> QImage:
@@ -35,12 +39,13 @@ class PreviewWidget(QWidget):
         super().__init__(parent)
         self._pixmap: QPixmap | None = None
         self._aspect = aspect
-        self._placeholder = "waiting for a frame"
+        self._placeholder = "Waiting for the first frame…"
+        self._max_height = MAX_PREVIEW_HEIGHT
         self.setMinimumHeight(90)
         # A portrait panel is 4:1 the other way, and its natural height would
         # squeeze the editor off the bottom of the window. The frame is
         # letterboxed into whatever room it gets, so capping height is safe.
-        self.setMaximumHeight(MAX_PREVIEW_HEIGHT)
+        self.setMaximumHeight(self._max_height)
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
         # Frames arrive on the engine thread; the signal hops them to the GUI thread.
         self.frame_ready.connect(self._on_frame, Qt.ConnectionType.QueuedConnection)
@@ -50,6 +55,12 @@ class PreviewWidget(QWidget):
             self._aspect = aspect
             self.updateGeometry()
             self.update()
+
+    def set_max_height(self, height: int) -> None:
+        """Cap the strip's height (the editor view keeps it shorter)."""
+        self._max_height = height
+        self.setMaximumHeight(height)
+        self.updateGeometry()
 
     def set_placeholder(self, text: str) -> None:
         self._placeholder = text
@@ -70,35 +81,40 @@ class PreviewWidget(QWidget):
         self.update()
 
     def heightForWidth(self, width: int) -> int:  # noqa: N802 - Qt naming
-        return min(MAX_PREVIEW_HEIGHT, int(width / self._aspect))
+        return min(self._max_height, int(width / self._aspect))
 
     def hasHeightForWidth(self) -> bool:  # noqa: N802 - Qt naming
         return True
 
     def sizeHint(self):  # noqa: N802 - Qt naming
-        from PySide6.QtCore import QSize
-
-        return QSize(960, min(MAX_PREVIEW_HEIGHT, int(960 / self._aspect)))
+        return QSize(960, min(self._max_height, int(960 / self._aspect)))
 
     def paintEvent(self, event) -> None:  # noqa: N802 - Qt naming
         painter = QPainter(self)
-        painter.fillRect(self.rect(), QColor("#0b0d14"))
+        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+        painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform)
 
         box = self._target_rect()
+        path = QPainterPath()
+        path.addRoundedRect(QRectF(box), CORNER_RADIUS, CORNER_RADIUS)
+        painter.fillPath(path, QColor(COLORS["preview_bg"]))
+
         if self._pixmap is None:
-            painter.setPen(QPen(QColor("#5b6479")))
-            painter.drawRect(box.adjusted(0, 0, -1, -1))
-            painter.drawText(box, Qt.AlignmentFlag.AlignCenter, self._placeholder)
-            return
+            painter.setPen(QPen(QColor(COLORS["muted"])))
+            painter.drawText(
+                box.adjusted(16, 0, -16, 0),
+                Qt.AlignmentFlag.AlignCenter | Qt.TextFlag.TextWordWrap,
+                self._placeholder,
+            )
+        else:
+            painter.save()
+            painter.setClipPath(path)
+            painter.drawPixmap(box, self._pixmap)
+            painter.restore()
+        painter.setPen(QPen(QColor(COLORS["border"])))
+        painter.drawPath(path)
 
-        painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform)
-        painter.drawPixmap(box, self._pixmap)
-        painter.setPen(QPen(QColor("#1e2433")))
-        painter.drawRect(box.adjusted(0, 0, -1, -1))
-
-    def _target_rect(self):
-        from PySide6.QtCore import QRect
-
+    def _target_rect(self) -> QRect:
         width = self.width()
         height = self.height()
         fitted_h = int(width / self._aspect)

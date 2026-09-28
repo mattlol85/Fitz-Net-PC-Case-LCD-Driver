@@ -8,23 +8,15 @@ from __future__ import annotations
 
 from collections.abc import Callable
 
-from PySide6.QtGui import QAction, QColor, QIcon, QPainter, QPixmap
+from PySide6.QtGui import QAction, QIcon
 from PySide6.QtWidgets import QMenu, QSystemTrayIcon
+
+from fitzlcd.ui import icons
 
 
 def make_icon() -> QIcon:
-    """Draw a small panel-shaped icon so there is no binary asset to ship."""
-    pixmap = QPixmap(64, 64)
-    pixmap.fill(QColor(0, 0, 0, 0))
-    painter = QPainter(pixmap)
-    painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-    painter.setBrush(QColor("#0d1030"))
-    painter.setPen(QColor("#ffcc00"))
-    painter.drawRoundedRect(4, 20, 56, 24, 4, 4)
-    painter.fillRect(10, 27, 20, 10, QColor("#ffcc00"))
-    painter.fillRect(34, 27, 20, 10, QColor("#00e5ff"))
-    painter.end()
-    return QIcon(pixmap)
+    """The app's panel-shaped mark, drawn in code so there is no asset to ship."""
+    return icons.app_icon()
 
 
 class TrayIcon(QSystemTrayIcon):
@@ -43,11 +35,12 @@ class TrayIcon(QSystemTrayIcon):
         self._on_scene: Callable[[str], None] | None = None
 
         menu = QMenu()
-        show = QAction("Show", menu)
+        show = QAction("Open FitzLCD", menu)
         show.triggered.connect(lambda: on_show())
         menu.addAction(show)
 
-        self.scene_menu = menu.addMenu("Scene")
+        menu.addSeparator()
+        self.scene_menu = menu.addMenu("Show scene")
 
         if on_previous is not None:
             previous = QAction("Previous scene", menu)
@@ -58,12 +51,13 @@ class TrayIcon(QSystemTrayIcon):
             following.triggered.connect(lambda: on_next())
             menu.addAction(following)
 
-        self.pause_action = QAction("Pause", menu, checkable=True)
+        menu.addSeparator()
+        self.pause_action = QAction("Pause display", menu, checkable=True)
         self.pause_action.toggled.connect(on_pause)
         menu.addAction(self.pause_action)
 
         menu.addSeparator()
-        quit_action = QAction("Quit", menu)
+        quit_action = QAction("Quit FitzLCD", menu)
         quit_action.triggered.connect(lambda: on_quit())
         menu.addAction(quit_action)
 

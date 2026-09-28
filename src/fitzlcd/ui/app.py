@@ -15,26 +15,13 @@ from fitzlcd.engine import EngineConfig, RenderEngine
 from fitzlcd.sources.claude_limits import ClaudeLimitsProvider
 from fitzlcd.sources.cs2gsi import Cs2GsiProvider, write_cs2_gsi_cfg
 from fitzlcd.sources.stats import StatsRegistry
+from fitzlcd.ui.icons import app_icon
 from fitzlcd.ui.main_window import MainWindow
+from fitzlcd.ui.theme import apply_theme
 from fitzlcd.ui.tray import TrayIcon
 from fitzlcd.ui.updates import UpdateController
 
 log = logging.getLogger(__name__)
-
-DARK_QSS = """
-QWidget { background: #10131c; color: #dbe1ef; font-size: 12px; }
-QListWidget, QScrollArea, QLineEdit, QTextEdit, QComboBox, QSpinBox, QDoubleSpinBox {
-    background: #161a26; border: 1px solid #232838; border-radius: 4px;
-}
-QListWidget::item:selected { background: #263048; }
-QPushButton {
-    background: #1d2334; border: 1px solid #2c3348; border-radius: 4px; padding: 4px 10px;
-}
-QPushButton:hover { background: #263048; }
-QPushButton:checked { background: #3a2f10; border-color: #6d5714; }
-QFrame { border: 1px solid #232838; border-radius: 4px; }
-QSplitter::handle { background: #1b2030; }
-"""
 
 
 def run_gui(args=None) -> int:
@@ -73,7 +60,8 @@ def run_gui(args=None) -> int:
     app.setApplicationName("FitzLCD")
     app.setApplicationVersion(__version__)
     app.setQuitOnLastWindowClosed(False)  # the tray keeps the app alive
-    app.setStyleSheet(DARK_QSS)
+    apply_theme(app)
+    app.setWindowIcon(app_icon())
 
     stats = StatsRegistry.with_defaults(clock_24_hour=config.clock_24_hour)
     try:
@@ -108,7 +96,11 @@ def run_gui(args=None) -> int:
             on_next=window.next_scene,
             on_previous=window.previous_scene,
         )
-        tray.set_scenes([s.name for s in window.scenes], _scene_switcher(window))
+        switcher = _scene_switcher(window)
+        tray.set_scenes([s.name for s in window.scenes], switcher)
+        window.scenes_changed.connect(lambda names: tray.set_scenes(names, switcher))
+        # Keep the menu's check mark in step when the header button is used.
+        window.pause_button.toggled.connect(tray.pause_action.setChecked)
         tray.show()
     else:
         log.warning("no system tray available; closing the window will quit")
@@ -124,6 +116,8 @@ def run_gui(args=None) -> int:
         window.show()
 
     def shutdown() -> None:
+        if window.isVisible():
+            window.save_geometry()
         engine.stop()
         stats.stop()
         if tray is not None:

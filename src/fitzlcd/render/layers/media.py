@@ -28,13 +28,17 @@ class MediaLayer(Layer):
     editing unrelated properties never re-decodes the file.
     """
 
+    display_name: ClassVar[str] = "Image or video"
+    summary: ClassVar[str] = "A picture, GIF or video file"
+    icon: ClassVar[str] = "image"
+
     FIELDS: ClassVar[tuple[Field, ...]] = (
         *Layer.FIELDS,
-        Field("source", "path", "File", "", help="image, GIF or video"),
+        Field("source", "path", "File", "", help="An image, GIF or video"),
         Field("fit", "choice", "Fit", "cover", choices=tuple(f.value for f in Fit)),
-        Field("pan", "number", "Pan (vertical)", 0.5, minimum=0.0, maximum=1.0),
-        Field("pan_x", "number", "Pan (horizontal)", 0.5, minimum=0.0, maximum=1.0),
-        Field("speed", "number", "Speed", 1.0, minimum=0.05, maximum=10.0),
+        Field("pan", "number", "Pan (vertical)", 0.5, minimum=0.0, maximum=1.0, advanced=True),
+        Field("pan_x", "number", "Pan (horizontal)", 0.5, minimum=0.0, maximum=1.0, advanced=True),
+        Field("speed", "number", "Playback speed", 1.0, minimum=0.05, maximum=10.0, advanced=True),
     )
 
     source: str = ""
@@ -100,13 +104,17 @@ class MediaLayer(Layer):
 class SolidLayer(Layer):
     """A flat or vertically-graded rectangle. Useful as a scrim behind text."""
 
+    display_name: ClassVar[str] = "Color fill"
+    summary: ClassVar[str] = "A solid or gradient rectangle"
+    icon: ClassVar[str] = "square"
+
     FIELDS: ClassVar[tuple[Field, ...]] = (
         *Layer.FIELDS,
         Field("color", "color", "Color", "#000000"),
         Field("color2", "color", "Gradient to", "#00000000", help="blank for a flat fill"),
         Field("rect", "rect", "Rect", [], help="empty = whole frame; px or percentages"),
         Field("anchor", "choice", "Anchor", "top-left", choices=ANCHORS),
-        Field("radius", "number", "Corner radius", 0, minimum=0, maximum=400),
+        Field("radius", "number", "Corner radius", 0, minimum=0, maximum=400, section="appearance"),
     )
 
     color: str = "#000000"

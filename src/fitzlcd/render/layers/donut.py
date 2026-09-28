@@ -54,9 +54,13 @@ def _normalise(value: float, minimum: float, maximum: float) -> float:
 class DonutLayer(Layer):
     """Ring gauge with optional centred readout."""
 
+    display_name: ClassVar[str] = "Ring"
+    summary: ClassVar[str] = "A circular gauge with a readout in the middle"
+    icon: ClassVar[str] = "ring"
+
     FIELDS: ClassVar[tuple[Field, ...]] = (
         *Layer.FIELDS,
-        Field("metric", "text", "Metric", "cpu.load"),
+        Field("metric", "metric", "Reading", "cpu.load"),
         Field(
             "rect",
             "rect",
@@ -65,24 +69,42 @@ class DonutLayer(Layer):
             help="x, y, w, h -- the ring is the largest circle that fits",
         ),
         Field("anchor", "choice", "Anchor", "top-left", choices=ANCHORS),
-        Field("minimum", "number", "Min", 0.0),
-        Field("maximum", "number", "Max", 100.0),
-        Field("thickness", "number", "Ring width (px)", 18, minimum=1, maximum=200),
-        Field("start_angle", "number", "Start angle", TOP_OF_CIRCLE, minimum=-360, maximum=360),
-        Field("clockwise", "bool", "Clockwise", True),
+        Field("minimum", "number", "Lowest value", 0.0),
+        Field("maximum", "number", "Highest value", 100.0),
+        Field(
+            "thickness",
+            "number",
+            "Ring width (px)",
+            18,
+            minimum=1,
+            maximum=200,
+            section="appearance",
+        ),
+        Field(
+            "start_angle",
+            "number",
+            "Start angle",
+            TOP_OF_CIRCLE,
+            minimum=-360,
+            maximum=360,
+            advanced=True,
+        ),
+        Field("clockwise", "bool", "Clockwise", True, advanced=True),
         Field("color", "color", "Fill", "#00E5FF"),
         Field("track_color", "color", "Track", "#FFFFFF1A"),
-        Field("warn_value", "number", "Warn at", 75.0),
+        Field("warn_value", "number", "Warn at", 75.0, section="appearance"),
         Field("warn_color", "color", "Warn fill", "#FFCC00"),
-        Field("critical_value", "number", "Critical at", 90.0),
+        Field("critical_value", "number", "Critical at", 90.0, section="appearance"),
         Field("critical_color", "color", "Critical fill", "#FF5F6D"),
-        Field("text", "text", "Centre text", "", help="Metric template, e.g. {cpu.load:.0f}%"),
-        Field("text_size", "number", "Centre size", 44, minimum=1, maximum=400),
+        Field("text", "text", "Centre text", "", help="Use Insert live value to add readings"),
+        Field(
+            "text_size", "number", "Centre size", 44, minimum=1, maximum=400, section="appearance"
+        ),
         Field("text_color", "color", "Centre colour", "#E8EDFB"),
         Field("sub_text", "text", "Sub text", ""),
-        Field("sub_size", "number", "Sub size", 20, minimum=1, maximum=400),
+        Field("sub_size", "number", "Sub size", 20, minimum=1, maximum=400, section="appearance"),
         Field("sub_color", "color", "Sub colour", "#8892B0"),
-        Field("font", "text", "Font", "sans"),
+        Field("font", "font", "Font", "sans", section="appearance"),
     )
 
     metric: str = "cpu.load"

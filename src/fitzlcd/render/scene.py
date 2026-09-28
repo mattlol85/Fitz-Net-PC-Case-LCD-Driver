@@ -36,17 +36,38 @@ class Field:
     """One editable layer property, used to build the GUI form."""
 
     name: str
-    kind: str  # text | multiline | number | color | choice | path | point | rect | bool
+    #: text | multiline | number | color | choice | path | point | rect | bool
+    #: | metric | font. ``metric`` and ``font`` are stored as plain strings; the
+    #: kind only picks a friendlier editor.
+    kind: str
     label: str = ""
     default: Any = None
     choices: tuple[str, ...] = ()
     minimum: float | None = None
     maximum: float | None = None
     help: str = ""
+    #: Which inspector section the field sits in: content | layout | appearance.
+    #: Blank infers one from the kind.
+    section: str = ""
+    #: Rarely needed; tucked into the collapsed Advanced section.
+    advanced: bool = False
 
     @property
     def title(self) -> str:
         return self.label or self.name.replace("_", " ").title()
+
+    @property
+    def group(self) -> str:
+        """The inspector section this field belongs in."""
+        if self.advanced:
+            return "advanced"
+        if self.section:
+            return self.section
+        if self.kind in ("point", "rect") or self.name == "anchor":
+            return "layout"
+        if self.kind == "color":
+            return "appearance"
+        return "content"
 
 
 _LAYER_TYPES: dict[str, type[Layer]] = {}
@@ -73,6 +94,12 @@ class Layer(ABC):
 
     #: JSON discriminator, set by the :func:`layer_type` decorator.
     type_name: ClassVar[str] = "layer"
+    #: What the GUI calls this layer type; blank derives one from ``type_name``.
+    display_name: ClassVar[str] = ""
+    #: One line shown in the Add menu.
+    summary: ClassVar[str] = ""
+    #: Name of a GUI icon (see ``fitzlcd.ui.icons.PATHS``).
+    icon: ClassVar[str] = "square"
     #: Editable properties, consumed by the GUI. Subclasses extend this.
     FIELDS: ClassVar[tuple[Field, ...]] = (
         Field("name", "text", "Name", ""),
@@ -84,8 +111,9 @@ class Layer(ABC):
             "any",
             choices=ORIENTATIONS,
             help="Restrict this layer to one panel orientation",
+            advanced=True,
         ),
-        Field("opacity", "number", "Opacity", 1.0, minimum=0.0, maximum=1.0),
+        Field("opacity", "number", "Opacity", 1.0, minimum=0.0, maximum=1.0, advanced=True),
     )
 
     name: str = ""
@@ -121,6 +149,10 @@ class Layer(ABC):
     def describe(self) -> str:
         """Short label for the layer list."""
         return self.name or self.type_name
+
+    @classmethod
+    def friendly_name(cls) -> str:
+        return cls.display_name or cls.type_name.replace("_", " ").capitalize()
 
     # ---------------------------------------------------------------- JSON
 

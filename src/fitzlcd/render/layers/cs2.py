@@ -45,16 +45,32 @@ class Cs2HitTimelineLayer(Layer):
     accumulating its own history like :class:`~fitzlcd.render.layers.gauge.SparklineLayer`.
     """
 
+    display_name: ClassVar[str] = "CS2 hit timeline"
+    summary: ClassVar[str] = "Recent damage you took in Counter-Strike 2"
+    icon: ClassVar[str] = "crosshair"
+
     FIELDS: ClassVar[tuple[Field, ...]] = (
         *Layer.FIELDS,
-        Field("metric", "text", "Hit events metric", "cs2.player.hit_events"),
+        Field("metric", "metric", "Hit events", "cs2.player.hit_events", advanced=True),
         Field("rect", "rect", "Rect", [40, 40, 600, 120]),
         Field("anchor", "choice", "Anchor", "top-left", choices=ANCHORS),
-        Field("window_seconds", "number", "Window (s)", 10.0, minimum=1.0, maximum=60.0),
+        Field(
+            "window_seconds", "number", "Window (s)", 10.0, minimum=1.0, maximum=60.0, advanced=True
+        ),
         Field("health_color", "color", "Health hit color", "#ff5f6d"),
         Field("armor_color", "color", "Armor hit color", "#ffcc00"),
-        Field("min_amount", "number", "Min dmg drawn", 1.0, minimum=0.0, maximum=100.0),
-        Field("max_amount", "number", "Max dmg (scale)", 60.0, minimum=1.0, maximum=200.0),
+        Field(
+            "min_amount", "number", "Min dmg drawn", 1.0, minimum=0.0, maximum=100.0, advanced=True
+        ),
+        Field(
+            "max_amount",
+            "number",
+            "Max dmg (scale)",
+            60.0,
+            minimum=1.0,
+            maximum=200.0,
+            advanced=True,
+        ),
         Field("track_color", "color", "Track", "#ffffff14"),
         Field("baseline_color", "color", "Baseline", "#ffffff33"),
     )
@@ -130,16 +146,32 @@ class Cs2HitTimelineLayer(Layer):
 class Cs2HitFlashLayer(Layer):
     """A brief full-frame border flash on the most recent hit."""
 
+    display_name: ClassVar[str] = "CS2 hit flash"
+    summary: ClassVar[str] = "Flashes the edges when you take damage in Counter-Strike 2"
+    icon: ClassVar[str] = "crosshair"
+
     FIELDS: ClassVar[tuple[Field, ...]] = (
         *Layer.FIELDS,
         Field(
-            "seconds_ago_metric", "text", "Seconds-ago metric", "cs2.player.last_hit_seconds_ago"
+            "seconds_ago_metric",
+            "metric",
+            "Seconds-ago metric",
+            "cs2.player.last_hit_seconds_ago",
+            advanced=True,
         ),
-        Field("kind_metric", "text", "Kind metric", "cs2.player.last_hit_kind"),
+        Field("kind_metric", "metric", "Kind metric", "cs2.player.last_hit_kind", advanced=True),
         Field("health_color", "color", "Health flash", "#ff5f6d"),
         Field("armor_color", "color", "Armor flash", "#ffcc00"),
         Field("duration", "number", "Fade duration (s)", 0.6, minimum=0.1, maximum=5.0),
-        Field("thickness", "number", "Border thickness (px)", 24, minimum=1, maximum=200),
+        Field(
+            "thickness",
+            "number",
+            "Border thickness (px)",
+            24,
+            minimum=1,
+            maximum=200,
+            section="appearance",
+        ),
     )
 
     seconds_ago_metric: str = "cs2.player.last_hit_seconds_ago"
