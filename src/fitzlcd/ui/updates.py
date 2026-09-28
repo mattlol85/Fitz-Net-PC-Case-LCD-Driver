@@ -17,6 +17,7 @@ from PySide6.QtWidgets import QMessageBox, QProgressDialog, QPushButton, QSystem
 
 from fitzlcd import updater
 from fitzlcd.config import AppConfig
+from fitzlcd.ui.theme import COLORS, STATUS_COLORS
 from fitzlcd.updater import Release
 
 log = logging.getLogger(__name__)
@@ -102,14 +103,14 @@ class UpdateController(QObject):
                 QMessageBox.information(
                     self.parent(),
                     "No update",
-                    "FitzLCD is up to date.",
+                    "You have the latest version of FitzLCD.",
                 )
             return
 
         self.available = release
         self.button.setText(f"Update to v{release.version}")
         self.button.setToolTip(f"Version {release.version} is available. Click to install it.")
-        self.button.setStyleSheet("color: #39d353;")
+        self.button.setStyleSheet(f"color: {STATUS_COLORS['connected']};")
 
         if announce and release.version != self.config.update_skipped_version and self.tray:
             self.tray.showMessage(
@@ -122,7 +123,7 @@ class UpdateController(QObject):
     def _reset_button(self) -> None:
         self.button.setText("Check for updates")
         self.button.setToolTip("Look for a newer FitzLCD release on GitHub.")
-        self.button.setStyleSheet("color: #8892b0;")
+        self.button.setStyleSheet(f"color: {COLORS['text']};")
 
     # ------------------------------------------------------------------ action
 

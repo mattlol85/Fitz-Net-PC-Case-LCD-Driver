@@ -27,11 +27,15 @@ LINE_SPACING = 0.35
 class TextLayer(Layer):
     """A line (or block) of text, optionally containing ``{metric}`` tokens."""
 
+    display_name: ClassVar[str] = "Text"
+    summary: ClassVar[str] = "Words, with live values like CPU load"
+    icon: ClassVar[str] = "type"
+
     FIELDS: ClassVar[tuple[Field, ...]] = (
         *Layer.FIELDS,
-        Field("text", "multiline", "Text", "", help="Supports {cpu.load:.0f} style tokens"),
-        Field("font", "text", "Font", "Segoe UI"),
-        Field("size", "number", "Size", 48, minimum=6, maximum=400),
+        Field("text", "multiline", "Text", "", help="Use Insert live value to add readings"),
+        Field("font", "font", "Font", "Segoe UI", section="appearance"),
+        Field("size", "number", "Size", 48, minimum=6, maximum=400, section="appearance"),
         Field("color", "color", "Color", "#FFFFFF"),
         Field(
             "pos",
@@ -49,7 +53,7 @@ class TextLayer(Layer):
             True,
             help="Reduce the size until the text fits the frame",
         ),
-        Field("shadow", "bool", "Shadow", False),
+        Field("shadow", "bool", "Shadow", False, section="appearance"),
     )
 
     text: str = ""
@@ -119,6 +123,10 @@ class TextLayer(Layer):
 class ClockLayer(Layer):
     """Wall clock. Separate from a text layer so it needs no metric plumbing."""
 
+    display_name: ClassVar[str] = "Clock"
+    summary: ClassVar[str] = "The current time"
+    icon: ClassVar[str] = "clock"
+
     FIELDS: ClassVar[tuple[Field, ...]] = (
         *Layer.FIELDS,
         Field(
@@ -127,9 +135,10 @@ class ClockLayer(Layer):
             "Format",
             "",
             help="strftime format; blank follows the app's 12/24-hour setting",
+            advanced=True,
         ),
-        Field("font", "text", "Font", "Segoe UI"),
-        Field("size", "number", "Size", 72, minimum=6, maximum=400),
+        Field("font", "font", "Font", "Segoe UI", section="appearance"),
+        Field("size", "number", "Size", 72, minimum=6, maximum=400, section="appearance"),
         Field("color", "color", "Color", "#FFFFFF"),
         Field("pos", "point", "Position", [40, 40]),
         Field("anchor", "choice", "Anchor", "top-left", choices=ANCHORS),

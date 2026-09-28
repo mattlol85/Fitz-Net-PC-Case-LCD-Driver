@@ -129,12 +129,15 @@ file.
 
 ### Flipping through scenes
 
-Prev/Next in the scenes pane or the tray menu, and a **Cycle** interval that
-advances automatically. Set it to `off` to leave the panel on one scene.
+Click a scene in the gallery (or use the arrow keys, or the tray menu's **Show
+scene**), and **Change scene automatically** advances on a timer. Set it to
+**Off** to leave the panel on one scene. Right-click a scene to rename,
+duplicate or delete it; **Customize** (or double-click) opens the editor, where
+every change saves immediately and **Ctrl+Z** undoes it.
 
 ### 12- or 24-hour clocks
 
-**12-hour clock** in the footer switches every clock in the app between
+**Use 12-hour time** in Settings switches every clock in the app between
 `13:30:00` and `1:30:00 PM`, live — no restart. It drives the `{time.now}`
 metric and every `clock` layer whose **Format** box is blank.
 
@@ -238,8 +241,8 @@ unzipped by hand — the update always downloads the portable zip and swaps
 files in place inside whatever folder `FitzLCD.exe` is already running from,
 no reinstall required. It asks GitHub for the latest release about
 eight seconds after start-up and once a day after that; when there's a newer
-one, the tray pops a notification and the footer button turns into
-**Update to v1.2.0**. Click it, confirm, and FitzLCD downloads the release,
+one, the tray pops a notification and the button in **Settings → About
+FitzLCD** turns into **Update to v1.2.0**. Click it, confirm, and FitzLCD downloads the release,
 verifies it, closes, swaps itself over and starts again — a few seconds, no zip
 to handle.
 
@@ -272,7 +275,7 @@ render/geometry   percentage/anchor length resolution
 engine.py         paced render loop, dirty-frame skip, reconnect watchdog
 panels/           Panel interface, registry, DS916 serial driver, virtual panel
 scenes_builtin.py the seeded scene library
-ui/               preview-first main window, properties pane, tray
+ui/               home (preview + scene gallery), Customize editor, Settings, tray
 ```
 
 Orientation is one number in two places: `PanelCaps.rotated(degrees)` swaps the
@@ -281,8 +284,11 @@ transform (rotations about the same centre simply add), and the engine composes
 at the rotated size. Whatever the mounting, the bytes reaching the panel are
 always its native 462×1920 buffer.
 
-Layers declare their own editable fields, so the properties pane is generated
-rather than hand-written — a new layer type needs no UI code.
+Layers declare their own editable fields, so the inspector is generated rather
+than hand-written — a new layer type needs no UI code. Optional metadata makes
+it friendlier: a `display_name`, `summary` and `icon` on the class, and on each
+`Field` a `section` (content / layout / appearance), `advanced=True` to tuck it
+away, or the kinds `metric` and `font` for a picker instead of a text box.
 
 ## Working with this panel safely
 

@@ -62,6 +62,9 @@ class AppConfig:
     #: Drives the ``time.now`` metric and every clock layer that has not been
     #: given an explicit strftime format of its own.
     clock_24_hour: bool = True
+    #: Show frame rate and throughput under the window. Off by default: it is
+    #: diagnostic detail, not something an everyday user needs to watch.
+    show_diagnostics: bool = False
     window_geometry: list[int] = field(default_factory=list)
     cs2_gsi_port: int = 13001
     cs2_gsi_token: str = ""
@@ -151,6 +154,36 @@ class SceneLibrary:
     def delete(self, scene: Scene) -> None:
         if scene.path and scene.path.exists():
             scene.path.unlink()
+
+    def unique_name(self, base: str, ignore: Scene | None = None) -> str:
+        """``base``, or ``base 2``, ``base 3``... - whichever won't overwrite a file.
+
+        Scene files are named from a slug of the scene name, so two names that
+        slug the same would share one file and the second save would silently
+        replace the first.
+        """
+        base = base.strip() or "Untitled"
+        taken = {
+            _slug(s.name)
+            for s in self.list()
+            if ignore is None or s.path is None or s.path != ignore.path
+        }
+        candidate, n = base, 2
+        while _slug(candidate) in taken:
+            candidate = f"{base} {n}"
+            n += 1
+        return candidate
+
+    def rename(self, scene: Scene, new_name: str) -> str:
+        """Rename a scene and move its file to match. Returns the name used."""
+        name = self.unique_name(new_name, ignore=scene)
+        old_path = scene.path
+        scene.name = name
+        scene.path = None
+        new_path = self.save(scene)
+        if old_path is not None and old_path.exists() and old_path.resolve() != new_path.resolve():
+            old_path.unlink()
+        return name
 
 
 def _slug(name: str) -> str:

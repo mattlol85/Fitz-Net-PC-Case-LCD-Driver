@@ -39,6 +39,10 @@ SUPERSAMPLE = 4
 class SparkLayer(Layer):
     """A tapered N-armed asterisk, optionally turning."""
 
+    display_name: ClassVar[str] = "Starburst"
+    summary: ClassVar[str] = "A decorative star mark that can spin"
+    icon: ClassVar[str] = "sparkle"
+
     FIELDS: ClassVar[tuple[Field, ...]] = (
         *Layer.FIELDS,
         Field(
@@ -60,9 +64,10 @@ class SparkLayer(Layer):
             minimum=0.0,
             maximum=1.0,
             help="tip width as a fraction of the base",
+            advanced=True,
         ),
-        Field("inner", "number", "Inner hole", 0.0, minimum=0.0, maximum=0.9),
-        Field("angle", "number", "Angle", 0.0, minimum=-360.0, maximum=360.0),
+        Field("inner", "number", "Inner hole", 0.0, minimum=0.0, maximum=0.9, advanced=True),
+        Field("angle", "number", "Angle", 0.0, minimum=-360.0, maximum=360.0, advanced=True),
         Field(
             "spin",
             "number",

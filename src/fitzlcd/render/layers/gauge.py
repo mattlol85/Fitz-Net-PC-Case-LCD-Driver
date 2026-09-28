@@ -34,9 +34,13 @@ def _normalise(value: float, minimum: float, maximum: float) -> float:
 class GaugeLayer(Layer):
     """Horizontal or vertical bar showing one metric against a range."""
 
+    display_name: ClassVar[str] = "Bar"
+    summary: ClassVar[str] = "A bar that fills with a live reading"
+    icon: ClassVar[str] = "bar"
+
     FIELDS: ClassVar[tuple[Field, ...]] = (
         *Layer.FIELDS,
-        Field("metric", "text", "Metric", "cpu.load"),
+        Field("metric", "metric", "Reading", "cpu.load"),
         Field(
             "rect",
             "rect",
@@ -45,13 +49,13 @@ class GaugeLayer(Layer):
             help="x, y, w, h -- px, -px from the far edge, or percentages",
         ),
         Field("anchor", "choice", "Anchor", "top-left", choices=ANCHORS),
-        Field("minimum", "number", "Min", 0.0),
-        Field("maximum", "number", "Max", 100.0),
+        Field("minimum", "number", "Lowest value", 0.0),
+        Field("maximum", "number", "Highest value", 100.0),
         Field("color", "color", "Fill", "#FFCC00"),
         Field("track_color", "color", "Track", "#FFFFFF22"),
         Field("border_color", "color", "Border", "#00000000"),
         Field("vertical", "bool", "Vertical", False),
-        Field("radius", "number", "Corner radius", 6, minimum=0, maximum=200),
+        Field("radius", "number", "Corner radius", 6, minimum=0, maximum=200, section="appearance"),
     )
 
     metric: str = "cpu.load"
@@ -111,17 +115,21 @@ class SparklineLayer(Layer):
     runtime state, not something to serialise.
     """
 
+    display_name: ClassVar[str] = "Graph"
+    summary: ClassVar[str] = "A line showing the recent history of a reading"
+    icon: ClassVar[str] = "graph"
+
     FIELDS: ClassVar[tuple[Field, ...]] = (
         *Layer.FIELDS,
-        Field("metric", "text", "Metric", "cpu.load"),
+        Field("metric", "metric", "Reading", "cpu.load"),
         Field("rect", "rect", "Rect", [40, 40, 400, 80]),
         Field("anchor", "choice", "Anchor", "top-left", choices=ANCHORS),
-        Field("minimum", "number", "Min", 0.0),
-        Field("maximum", "number", "Max", 100.0),
+        Field("minimum", "number", "Lowest value", 0.0),
+        Field("maximum", "number", "Highest value", 100.0),
         Field("color", "color", "Line", "#00E5FF"),
         Field("fill_color", "color", "Fill", "#00E5FF33"),
-        Field("samples", "number", "Samples", 60, minimum=2, maximum=1000),
-        Field("width", "number", "Line width", 3, minimum=1, maximum=20),
+        Field("samples", "number", "Samples", 60, minimum=2, maximum=1000, advanced=True),
+        Field("width", "number", "Line width", 3, minimum=1, maximum=20, section="appearance"),
     )
 
     metric: str = "cpu.load"

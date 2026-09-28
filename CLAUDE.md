@@ -56,13 +56,13 @@ render/geometry   percentage/anchor length resolution
 engine.py         paced render loop, dirty-frame skip, reconnect watchdog
 panels/           Panel interface, registry, DS916 serial driver, virtual panel
 scenes_builtin.py the seeded scene library
-ui/               preview-first main window, properties pane, tray
+ui/               home (preview + scene gallery), Customize editor, Settings, tray
 ```
 
 **Scenes are data, not code.** A scene is JSON (`Scene` in `render/scene.py`):
 a background plus an ordered stack of layer dicts, drawn bottom-up. Users edit
 them as JSON under `%APPDATA%\FitzLCD\scenes\`, or through the GUI's
-properties pane. The built-in library lives in `scenes_builtin.py` as Python
+Customize editor. The built-in library lives in `scenes_builtin.py` as Python
 functions returning that same JSON shape, and is only seeded into
 `%APPDATA%\FitzLCD\scenes\` when that directory is empty — adding a new
 built-in scene there does **not** retroactively appear for existing installs;
@@ -71,10 +71,15 @@ deletes their scenes dir to re-seed).
 
 **Layers self-register.** Each layer type (`render/layers/*.py`) is a
 dataclass decorated with `@layer_type("name")`, declaring its own `FIELDS`
-(name, kind, default, choices). The properties pane in the GUI is generated
+(name, kind, default, choices). The inspector in the GUI is generated
 from those `FIELDS` — a new layer type needs zero UI code, just the dataclass
-and its `draw()`. `is_dynamic` marks a layer as needing per-frame redraw
-(metrics, clocks) versus static content the compositor can cache.
+and its `draw()`. Friendliness is declared on the layer too, never in UI tables:
+`display_name`/`summary`/`icon` class vars, and per-`Field` `section`,
+`advanced`, and the UI-only kinds `metric`/`font` (stored as plain strings, so
+they never change scene JSON). Metric keys get human labels from
+`sources/catalog.py`; an unknown key still works, shown raw. `is_dynamic`
+marks a layer as needing per-frame redraw (metrics, clocks) versus static
+content the compositor can cache.
 
 **Metrics are a flat dotted namespace**, e.g. `cpu.load`, `gpu.temp`,
 `claude.today.tokens`. `MetricProvider` subclasses in `sources/*.py` are

@@ -6,6 +6,7 @@ the actual widget tree - not a mock - feeds it one composed frame and a fake
 stats snapshot, then grabs the window.
 
     python tools/ui_shot.py [-o build/gui-screenshot.png] [--scene "Rig Stats"]
+                            [--view home|customize|settings]
 """
 
 from __future__ import annotations
@@ -62,15 +63,16 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--scene", default="Rig Stats")
     ap.add_argument("--size", default="1180x760")
     ap.add_argument("--rotation", type=int, choices=(0, 90, 180, 270), default=0)
+    ap.add_argument("--view", choices=("home", "customize", "settings"), default="home")
     args = ap.parse_args(argv)
 
     width, _, height = args.size.partition("x")
     app = QApplication(sys.argv[:1])
     _install_fonts(app)
 
-    from fitzlcd.ui.app import DARK_QSS
+    from fitzlcd.ui.theme import apply_theme
 
-    app.setStyleSheet(DARK_QSS)
+    apply_theme(app)
 
     config = AppConfig.load()
     config.active_scene = args.scene
@@ -79,15 +81,13 @@ def main(argv: list[str] | None = None) -> int:
     library.ensure_defaults()
 
     engine = RenderEngine()  # never started: this is a layout shot, not a run
-    window = MainWindow(engine, library, config)
+    stats = StatsRegistry.with_defaults()
+    metrics = stats.poll_once()
+    window = MainWindow(engine, library, config, stats=stats)
     window.resize(int(width), int(height))
 
     # Feed one real composed frame plus a plausible stats snapshot so the
     # screenshot shows the window in its normal working state.
-    stats = StatsRegistry.with_defaults()
-    metrics = stats.poll_once()
-    stats.stop()
-
     if window.current_scene is not None:
         from fitzlcd.panels.base import PanelCaps
         from fitzlcd.render.encode import Transform
@@ -117,19 +117,35 @@ def main(argv: list[str] | None = None) -> int:
         frames_skipped=0,
         scene_name=args.scene,
     )
-    if window.layer_list.count():
-        window.layer_list.setCurrentRow(0)
-
     window.show()
     # Drain queued signals first: the window emits its own (disconnected)
     # stats while loading scenes, which would otherwise land after ours.
     app.processEvents()
     window._render_stats(shot_stats)
     app.processEvents()
+    # Gallery thumbnails render on a worker thread; wait for them.
+    window._refresh_thumbnails()
+    window.thumbnails.wait()
+    app.processEvents()
+    window._refresh_thumbnails()
+
+    if args.view == "customize":
+        window.show_customize()
+        if window.customize.layer_list.count():
+            window.customize.layer_list.setCurrentRow(0)
+    app.processEvents()
 
     out = Path(args.out)
     out.parent.mkdir(parents=True, exist_ok=True)
-    window.grab().save(str(out))
+    if args.view == "settings":
+        window.open_settings()
+        app.processEvents()
+        window.settings_dialog.adjustSize()
+        app.processEvents()
+        window.settings_dialog.grab().save(str(out))
+    else:
+        window.grab().save(str(out))
+    stats.stop()
     print(f"saved {out}")
     return 0
 
