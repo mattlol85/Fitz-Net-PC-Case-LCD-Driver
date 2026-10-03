@@ -45,6 +45,9 @@ log = logging.getLogger(__name__)
 #: Fields whose loss (a positive delta) counts as a "hit" worth visualising.
 _HIT_FIELDS = ("health", "armor")
 
+#: GSI payloads are a few KB; anything far larger is not CS2 and is not read.
+_MAX_BODY_BYTES = 1_000_000
+
 
 def _as_float(value: object) -> float | None:
     try:
@@ -56,16 +59,29 @@ def _as_float(value: object) -> float | None:
 class _Cs2GsiHandler(BaseHTTPRequestHandler):
     def do_POST(self) -> None:  # noqa: N802 - BaseHTTPRequestHandler's naming
         provider: Cs2GsiProvider = self.server.provider  # type: ignore[attr-defined]
-        length = int(self.headers.get("Content-Length", 0))
-        body = self.rfile.read(length) if length else b""
         try:
+            length = int(self.headers.get("Content-Length", 0))
+        except (TypeError, ValueError):
+            length = -1
+        if not 0 <= length <= _MAX_BODY_BYTES:
+            self.send_response(413 if length > 0 else 400)
+            self.end_headers()
+            return
+        try:
+            body = self.rfile.read(length) if length else b""
             payload = json.loads(body) if body else {}
-        except json.JSONDecodeError:
+        except (OSError, ValueError):  # socket error, bad JSON or bad UTF-8
+            self.send_response(400)
+            self.end_headers()
+            return
+        if not isinstance(payload, dict):
             self.send_response(400)
             self.end_headers()
             return
 
-        if provider._token and payload.get("auth", {}).get("token") != provider._token:
+        auth = payload.get("auth")
+        token = auth.get("token") if isinstance(auth, dict) else None
+        if provider._token and token != provider._token:
             self.send_response(401)
             self.end_headers()
             return
@@ -318,11 +334,14 @@ def write_cs2_gsi_cfg(config: AppConfig, path: str = "/gsi") -> Path:
     from fitzlcd.config import app_dir
 
     target = app_dir() / "gamestate_integration_fitzlcd.cfg"
-    target.parent.mkdir(parents=True, exist_ok=True)
-    target.write_text(
-        _CFG_TEMPLATE.format(port=config.cs2_gsi_port, path=path, token=config.cs2_gsi_token),
-        encoding="utf-8",
-    )
+    try:
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(
+            _CFG_TEMPLATE.format(port=config.cs2_gsi_port, path=path, token=config.cs2_gsi_token),
+            encoding="utf-8",
+        )
+    except OSError as exc:  # a convenience copy; startup must not depend on it
+        log.warning("could not write the CS2 GSI staging cfg to %s: %s", target, exc)
     return target
 
 

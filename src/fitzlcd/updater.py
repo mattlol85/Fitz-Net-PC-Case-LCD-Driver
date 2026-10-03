@@ -370,9 +370,12 @@ def apply_and_restart(staged: Path, target: Path | None = None) -> Path:
 def cleanup(dest_dir: Path | None = None) -> None:
     """Drop downloads and staging left behind by a previous update."""
     directory = dest_dir or updates_dir()
-    if not directory.exists():
+    try:
+        children = list(directory.iterdir()) if directory.exists() else []
+    except OSError as exc:
+        log.debug("could not list %s: %s", directory, exc)
         return
-    for child in directory.iterdir():
+    for child in children:
         try:
             _rmtree(child) if child.is_dir() else child.unlink()
         except OSError as exc:  # noqa: PERF203 - best effort, never fatal

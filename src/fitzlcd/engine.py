@@ -288,6 +288,9 @@ class RenderEngine:
         except PanelError as exc:
             self._update_stats(connected=False, last_error=str(exc))
             return False
+        except OSError as exc:  # a driver that leaks a raw serial/USB error
+            self._update_stats(connected=False, last_error=str(exc))
+            return False
 
         self._panel = panel
         self._last_payload = None
@@ -317,7 +320,10 @@ class RenderEngine:
     def _disconnect(self, error: str = "") -> None:
         panel, self._panel = self._panel, None
         if panel is not None:
-            panel.close()
+            try:
+                panel.close()
+            except Exception as exc:  # noqa: BLE001 - a dead port must not break teardown
+                log.warning("error closing panel: %s", exc)
         self._last_payload = None
         self._update_stats(connected=False, fps=0.0, bytes_per_second=0.0, last_error=error)
 

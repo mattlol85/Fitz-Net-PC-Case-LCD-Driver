@@ -150,7 +150,7 @@ def detect_client_version(root: Path | None = None) -> str:
             continue
         try:
             version = json.loads(line).get("version")
-        except json.JSONDecodeError:
+        except (ValueError, AttributeError):  # bad JSON, or a non-object line
             continue
         if isinstance(version, str) and version:
             return version
@@ -170,7 +170,9 @@ def read_access_token(root: Path | None = None) -> tuple[str | None, float | Non
     path = (root or _claude_dir()) / ".credentials.json"
     try:
         data = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError):
+    except (OSError, ValueError):  # ValueError covers JSON and bad UTF-8
+        return None, None
+    if not isinstance(data, dict):
         return None, None
 
     oauth = data.get("claudeAiOauth")
@@ -203,7 +205,10 @@ class ClaudeLimitsProvider(MetricProvider):
         version: str | None = None,
     ) -> None:
         self._root = root or _claude_dir()
-        self._poll_seconds = max(_MIN_POLL_SECONDS, float(poll_seconds))
+        try:
+            self._poll_seconds = max(_MIN_POLL_SECONDS, float(poll_seconds))
+        except (TypeError, ValueError):
+            self._poll_seconds = _MIN_POLL_SECONDS
         self._fetch = fetch or _http_get
         self._version = version
 
@@ -241,7 +246,7 @@ class ClaudeLimitsProvider(MetricProvider):
                 # Resume the normal cadence from the cached reading's age.
                 remaining = self._poll_seconds - (time.time() - float(fetched_at))
                 self._next_attempt = time.monotonic() + max(0.0, remaining)
-        except (OSError, json.JSONDecodeError, AttributeError) as exc:
+        except (OSError, ValueError, AttributeError) as exc:
             log.debug("claude limits: unusable cache at %s (%s)", self._cache_path, exc)
 
     def _save_cache(self) -> None:

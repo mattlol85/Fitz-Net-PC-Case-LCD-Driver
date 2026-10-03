@@ -129,6 +129,46 @@ This is a hardware constraint, not a style preference — see "Working with this
 panel safely" in the README before changing anything in `engine.py` or
 `panels/ds916/`.
 
+## Defensive programming
+
+This app runs unattended in a tray, on background threads, reading files and
+network payloads that users or third parties control. An unhandled exception
+here silently kills a thread (the panel freezes, metrics stop) or crashes
+startup. When writing or changing code:
+
+- **Every thread body, timer/slot callback and HTTP handler catches at its top
+  level**, logs, and keeps going (see `engine._run`, `StatsRegistry._run`,
+  `UpdateController.check_async`). A worker that can die before emitting its
+  result signal also leaves "busy" flags stuck — emit in a `finally`/after the
+  `except`.
+- **Untrusted input is validated, not assumed.** JSON from disk or the network
+  may be the wrong top-level type (`list`, `null`), have wrong field types, or
+  be bad UTF-8: `isinstance`-check before `.get()`, catch `ValueError` (it
+  covers `JSONDecodeError` and `UnicodeDecodeError`) rather than only
+  `JSONDecodeError`, and wrap `int()`/`float()` on external values. Bound
+  anything read from a socket (`Content-Length`).
+- **Bad user data costs the item, not the app.** A corrupt scene is skipped
+  (`SceneError`), a bad config value falls back to its default, a corrupt
+  transcript line is skipped, a failing layer is skipped by the compositor.
+  Convert low-level errors into the module's own error type at the boundary
+  (`SceneError`, `MediaError`, `PanelError`, `UpdateError`).
+- **Best-effort I/O never crashes the caller.** Settings saves, the CS2 staging
+  cfg, caches and cleanup catch `OSError` and log a warning. Writes the user
+  explicitly asked for (saving a scene, installing the CS2 cfg) still raise so
+  the UI can tell them.
+- **Teardown steps are isolated.** `close()`/`stop()` paths wrap each step so one
+  failure can't skip the rest — especially `engine.stop()`, which parks the panel.
+  Release resources you opened before raising on a half-initialised object.
+- **Catch narrowly, except at boundaries.** Prefer specific exceptions inside
+  logic; a bare `except Exception` is only for the boundaries above and needs a
+  `# noqa: BLE001 - <why>` comment. Never `except:` and never swallow silently —
+  log at least at `debug`. Pillow and PyAV raise odd types (`SyntaxError`,
+  `DecompressionBombError`), so decoding boundaries catch `Exception`.
+- **Omit, don't guess** still applies: on failure publish no metric, never a
+  placeholder zero.
+- Add a test for each new failure path (malformed file, wrong type, missing
+  device) alongside the happy-path test.
+
 ## Releases
 
 `.github/workflows/python-build.yaml` runs `ruff check .` + `pytest` on every
