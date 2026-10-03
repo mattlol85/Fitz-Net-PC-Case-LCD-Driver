@@ -72,7 +72,7 @@ class StillSource(MediaSource):
         try:
             with Image.open(self.path) as img:
                 self._image = img.convert("RGBA")
-        except OSError as exc:
+        except Exception as exc:  # noqa: BLE001 - Pillow raises OSError, SyntaxError, bombs...
             raise MediaError(f"cannot open image {self.path.name}: {exc}") from exc
 
     @property
@@ -107,7 +107,7 @@ class GifSource(MediaSource):
                     ms = frame.info.get("duration") or self.DEFAULT_FRAME_MS
                     elapsed += max(self.MIN_FRAME_MS, int(ms)) / 1000.0
                 self._duration = elapsed
-        except OSError as exc:
+        except Exception as exc:  # noqa: BLE001 - Pillow raises OSError, SyntaxError, bombs...
             raise MediaError(f"cannot open animation {self.path.name}: {exc}") from exc
         if not self._frames:
             raise MediaError(f"{self.path.name} contains no frames")
@@ -163,13 +163,16 @@ class VideoSource(MediaSource):
 
         try:
             container = av.open(str(self.path))
-            stream = container.streams.video[0]
         except Exception as exc:  # noqa: BLE001 - PyAV raises a wide range
             raise MediaError(f"cannot open video {self.path.name}: {exc}") from exc
-
-        self._size = (stream.codec_context.width, stream.codec_context.height)
-        self._duration = float(stream.duration * stream.time_base) if stream.duration else 0.0
-        stream.thread_type = "AUTO"
+        try:
+            stream = container.streams.video[0]
+            self._size = (stream.codec_context.width, stream.codec_context.height)
+            self._duration = float(stream.duration * stream.time_base) if stream.duration else 0.0
+            stream.thread_type = "AUTO"
+        except Exception as exc:  # noqa: BLE001 - no video stream, odd codec, bad timebase
+            container.close()
+            raise MediaError(f"cannot open video {self.path.name}: {exc}") from exc
         self._container = container
         self._stream = stream
 

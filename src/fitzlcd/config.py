@@ -88,16 +88,39 @@ class AppConfig:
             return cls()
         try:
             data = json.loads(target.read_text(encoding="utf-8"))
-        except (OSError, json.JSONDecodeError) as exc:
+        except (OSError, ValueError) as exc:  # ValueError covers JSON and bad UTF-8
             log.warning("could not read %s (%s); using defaults", target, exc)
             return cls()
-        known = {f.name for f in fields(cls)}
-        return cls(**{k: v for k, v in data.items() if k in known})
+        if not isinstance(data, dict):
+            log.warning("%s is not a JSON object; using defaults", target)
+            return cls()
+        defaults = cls()
+        config = cls()
+        for f in fields(cls):
+            if f.name not in data:
+                continue
+            value, fallback = data[f.name], getattr(defaults, f.name)
+            # Hand-edited files get wrong types; keep the default rather than
+            # let a string where a number belongs crash startup later.
+            # bool is an int subclass, so it must match exactly, not loosely.
+            if (
+                type(value) is type(fallback)
+                or (isinstance(fallback, float) and type(value) is int)
+                or (f.name == "max_fps" and (value is None or type(value) is int))
+            ):
+                setattr(config, f.name, value)
+            else:
+                log.warning("config %r has a bad value %r; using the default", f.name, value)
+        return config
 
     def save(self, path: Path | None = None) -> Path:
+        """Best-effort write: a read-only profile must not crash the app."""
         target = path or config_path()
-        target.parent.mkdir(parents=True, exist_ok=True)
-        target.write_text(json.dumps(asdict(self), indent=2), encoding="utf-8")
+        try:
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_text(json.dumps(asdict(self), indent=2), encoding="utf-8")
+        except OSError as exc:
+            log.warning("could not save settings to %s: %s", target, exc)
         return target
 
 
@@ -122,18 +145,27 @@ class SceneLibrary:
         self.directory = directory or scenes_dir()
 
     def ensure_defaults(self) -> None:
-        self.directory.mkdir(parents=True, exist_ok=True)
-        if any(self.directory.glob("*.json")):
+        try:
+            self.directory.mkdir(parents=True, exist_ok=True)
+            if any(self.directory.glob("*.json")):
+                return
+            for name, data in DEFAULT_SCENES.items():
+                (self.directory / f"{name}.json").write_text(
+                    json.dumps(data, indent=2), encoding="utf-8"
+                )
+        except OSError as exc:
+            log.warning("could not seed default scenes in %s: %s", self.directory, exc)
             return
-        for name, data in DEFAULT_SCENES.items():
-            (self.directory / f"{name}.json").write_text(
-                json.dumps(data, indent=2), encoding="utf-8"
-            )
         log.info("seeded %d default scenes in %s", len(DEFAULT_SCENES), self.directory)
 
     def list(self) -> list[Scene]:
         scenes = []
-        for path in sorted(self.directory.glob("*.json")):
+        try:
+            paths = sorted(self.directory.glob("*.json"))
+        except OSError as exc:
+            log.warning("could not list scenes in %s: %s", self.directory, exc)
+            return scenes
+        for path in paths:
             try:
                 scenes.append(Scene.load(path))
             except SceneError as exc:

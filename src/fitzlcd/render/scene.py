@@ -167,6 +167,8 @@ class Layer(ABC):
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> Layer:
+        if not isinstance(data, dict):
+            raise SceneError(f"a layer must be an object, got {type(data).__name__}")
         type_name = data.get("type")
         if type_name not in _LAYER_TYPES:
             known = ", ".join(sorted(_LAYER_TYPES)) or "(none registered)"
@@ -178,7 +180,7 @@ class Layer(ABC):
                 kwargs[f.name] = data[f.name]
         try:
             return target(**kwargs)
-        except TypeError as exc:
+        except (TypeError, ValueError) as exc:
             raise SceneError(f"bad {type_name} layer: {exc}") from exc
 
 
@@ -216,6 +218,8 @@ class Scene:
         if not isinstance(data, dict):
             raise SceneError("scene document must be an object")
         version = data.get("version", SCHEMA_VERSION)
+        if not isinstance(version, int) or isinstance(version, bool):
+            raise SceneError(f"'version' must be an integer, got {version!r}")
         if version > SCHEMA_VERSION:
             raise SceneError(
                 f"scene needs schema version {version}, this build understands {SCHEMA_VERSION}"
@@ -223,7 +227,10 @@ class Scene:
         raw_layers = data.get("layers", [])
         if not isinstance(raw_layers, list):
             raise SceneError("'layers' must be a list")
-        fps = int(data.get("fps", 30))
+        try:
+            fps = int(data.get("fps", 30))
+        except (TypeError, ValueError) as exc:
+            raise SceneError(f"'fps' must be a number, got {data.get('fps')!r}") from exc
         if fps < 1:
             raise SceneError(f"fps must be >= 1, got {fps}")
         return cls(
@@ -248,4 +255,6 @@ class Scene:
             data = json.loads(path.read_text(encoding="utf-8"))
         except json.JSONDecodeError as exc:
             raise SceneError(f"{path.name} is not valid JSON: {exc}") from exc
+        except (OSError, UnicodeDecodeError) as exc:
+            raise SceneError(f"cannot read {path.name}: {exc}") from exc
         return cls.from_dict(data, path=path)

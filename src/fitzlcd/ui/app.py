@@ -116,12 +116,21 @@ def run_gui(args=None) -> int:
         window.show()
 
     def shutdown() -> None:
-        if window.isVisible():
-            window.save_geometry()
-        engine.stop()
-        stats.stop()
-        if tray is not None:
-            tray.hide()
+        # Each step is isolated: a failure in one must not skip the rest, and
+        # above all must not skip engine.stop(), which parks the panel.
+        steps = [
+            ("save geometry", window.save_geometry if window.isVisible() else None),
+            ("stop engine", engine.stop),
+            ("stop stats", stats.stop),
+            ("hide tray", tray.hide if tray is not None else None),
+        ]
+        for label, step in steps:
+            if step is None:
+                continue
+            try:
+                step()
+            except Exception as exc:  # noqa: BLE001 - quitting must always complete
+                log.warning("shutdown step %r failed: %s", label, exc)
 
     app.aboutToQuit.connect(shutdown)
 

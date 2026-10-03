@@ -246,11 +246,17 @@ class StatsRegistry:
         if thread:
             thread.join(timeout)
         for provider in self._providers:
-            provider.close()
+            try:
+                provider.close()
+            except Exception as exc:  # noqa: BLE001 - one provider must not block the rest closing
+                log.debug("provider %s failed to close: %s", provider.name, exc)
 
     def _run(self) -> None:
         while not self._stop.is_set():
-            self.poll_once()
+            try:
+                self.poll_once()
+            except Exception as exc:  # noqa: BLE001 - the poll thread must never die
+                log.warning("stats poll failed: %s", exc)
             self._stop.wait(self.interval)
 
     # Convenient as the engine's metrics_provider callable.

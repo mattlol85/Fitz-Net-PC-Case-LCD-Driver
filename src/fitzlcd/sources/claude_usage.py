@@ -125,7 +125,9 @@ def _ingest_file(path: Path) -> _FileMeta:
             continue
         try:
             record = json.loads(line)
-        except json.JSONDecodeError:
+        except ValueError:
+            continue
+        if not isinstance(record, dict):
             continue
 
         message = record.get("message")
@@ -138,13 +140,15 @@ def _ingest_file(path: Path) -> _FileMeta:
         if epoch is None:
             continue
 
-        day = time.strftime("%Y-%m-%d", time.localtime(epoch))
+        try:
+            input_tokens = int(usage.get("input_tokens") or 0)
+            output_tokens = int(usage.get("output_tokens") or 0)
+            cache_write = int(usage.get("cache_creation_input_tokens") or 0)
+            cache_read = int(usage.get("cache_read_input_tokens") or 0)
+            day = time.strftime("%Y-%m-%d", time.localtime(epoch))
+        except (TypeError, ValueError, OverflowError, OSError):
+            continue  # a corrupt record costs that record, not the whole file
         totals = days.setdefault(day, _DayTotals())
-
-        input_tokens = int(usage.get("input_tokens") or 0)
-        output_tokens = int(usage.get("output_tokens") or 0)
-        cache_write = int(usage.get("cache_creation_input_tokens") or 0)
-        cache_read = int(usage.get("cache_read_input_tokens") or 0)
 
         totals.input_tokens += input_tokens
         totals.output_tokens += output_tokens
@@ -153,10 +157,11 @@ def _ingest_file(path: Path) -> _FileMeta:
         totals.messages += 1
 
         session_id = record.get("sessionId") or record.get("session_id")
-        if session_id:
+        if isinstance(session_id, str) and session_id:
             totals.sessions.add(session_id)
 
-        model = message.get("model") or ""
+        model = message.get("model")
+        model = model if isinstance(model, str) else ""
         p_in, p_out, p_cw, p_cr = _pricing_for(model)
         totals.cost_usd += (
             input_tokens * p_in + output_tokens * p_out + cache_write * p_cw + cache_read * p_cr

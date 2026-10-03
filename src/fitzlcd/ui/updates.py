@@ -83,7 +83,11 @@ class UpdateController(QObject):
         self._busy = True
 
         def work() -> None:
-            release = updater.check()
+            try:
+                release = updater.check()
+            except Exception as exc:  # noqa: BLE001 - else _busy sticks and checks stop forever
+                log.warning("update check crashed: %s", exc)
+                release = None
             self.checked.emit((release, announce))
 
         threading.Thread(target=work, daemon=True).start()
