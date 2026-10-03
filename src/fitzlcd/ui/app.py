@@ -130,9 +130,15 @@ def run_gui(args=None) -> int:
     # A wedged panel can leave the guarded open thread blocked inside the OS
     # serial driver, which stops the interpreter from finalising. The user asked
     # to quit; honour that rather than hanging on a stuck device.
-    sys.stdout.flush()
-    sys.stderr.flush()
+    _flush_std_streams()
     os._exit(code)
+
+
+def _flush_std_streams() -> None:
+    # Windowed (no-console) frozen builds have sys.stdout/sys.stderr set to None.
+    for stream in (sys.stdout, sys.stderr):
+        if stream is not None:
+            stream.flush()
 
 
 def _scene_switcher(window: MainWindow):
