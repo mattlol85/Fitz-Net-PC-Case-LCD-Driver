@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "fitzlcd"
-version = "1.5.0"
+version = "1.5.1"
 description = "Desktop driver for PC-case USB LCD panels (Jonsbo DS916 and friends)"
 requires-python = ">=3.12"
 dependencies = [
