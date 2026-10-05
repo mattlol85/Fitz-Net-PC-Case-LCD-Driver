@@ -212,8 +212,12 @@ class UpdateController(QObject):
             QMessageBox.StandardButton.Ok | QMessageBox.StandardButton.Cancel,
             QMessageBox.StandardButton.Ok,
         )
-        if confirm is not QMessageBox.StandardButton.Ok:
+        # Compare by value: PySide6 returns a plain int here, so `is` against the
+        # enum member is always False and silently skipped the restart.
+        if confirm != QMessageBox.StandardButton.Ok:
+            log.info("update to %s deferred by the user", release.version)
             return
+        log.info("launching update helper for %s", release.version)
         try:
             updater.apply_and_restart(staged)
         except Exception as exc:  # noqa: BLE001 - fall back to the manual route
