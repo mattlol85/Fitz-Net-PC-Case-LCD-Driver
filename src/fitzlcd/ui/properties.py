@@ -54,6 +54,7 @@ SECTIONS = (
     ("content", "Content"),
     ("layout", "Position & size"),
     ("appearance", "Appearance"),
+    ("animation", "Animation"),
     ("advanced", "Advanced"),
 )
 

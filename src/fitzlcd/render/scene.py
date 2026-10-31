@@ -46,8 +46,9 @@ class Field:
     minimum: float | None = None
     maximum: float | None = None
     help: str = ""
-    #: Which inspector section the field sits in: content | layout | appearance.
-    #: Blank infers one from the kind.
+    #: Which inspector section the field sits in: content | layout | appearance |
+    #: animation. Blank infers one from the kind. A section missing from the
+    #: inspector's list (``ui.properties.SECTIONS``) silently hides its fields.
     section: str = ""
     #: Rarely needed; tucked into the collapsed Advanced section.
     advanced: bool = False
