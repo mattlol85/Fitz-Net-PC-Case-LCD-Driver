@@ -128,6 +128,71 @@ class TestCheckFailureModes:
         assert updater.check(current="1.0.0", fetch=Recorder(response)) is None
 
 
+class TestCheckDetailed:
+    """A check that cannot finish must say why, never look like "you're up to date"."""
+
+    @pytest.mark.parametrize(
+        ("response", "reason"),
+        [
+            ((403, {"message": "rate limited"}), "HTTP 403"),
+            ((500, ""), "HTTP 500"),
+            ((200, "not json at all"), "JSONDecodeError"),
+            ((200, OSError("network down")), "network down"),
+            ((200, ["not", "an", "object"]), "expected kind of data"),
+            ((200, {"tag_name": ""}), "no version tag"),
+        ],
+    )
+    def test_failures_carry_their_reason(self, response, reason):
+        result = updater.check_detailed(current="1.0.0", fetch=Recorder(response))
+        assert result.release is None
+        assert reason in result.error
+
+    def test_a_release_without_a_windows_build_is_a_failure_not_current(self):
+        payload = dict(PAYLOAD)
+        payload["assets"] = []
+        result = updater.check_detailed(current="1.0.0", fetch=Recorder((200, payload)))
+        assert result.release is None
+        assert "no Windows build" in result.error
+
+    def test_a_current_build_has_no_error(self):
+        assert updater.check_detailed(current="2.0.0", fetch=Recorder()) == updater.CheckResult()
+
+    def test_a_newer_release_has_no_error(self):
+        result = updater.check_detailed(current="1.0.0", fetch=Recorder())
+        assert result.release is not None
+        assert result.error == ""
+
+
+class TestCheckLog:
+    def test_each_check_appends_one_line(self, tmp_path: Path):
+        log = tmp_path / "update-check.log"
+        updater.record_check(
+            updater.CheckResult(error="GitHub answered HTTP 403"), current="1.5.2", path=log
+        )
+        updater.record_check(updater.CheckResult(), current="1.5.2", path=log)
+
+        lines = log.read_text(encoding="utf-8").splitlines()
+        assert len(lines) == 2
+        assert lines[0].endswith("running 1.5.2: error: GitHub answered HTTP 403")
+        assert lines[1].endswith("running 1.5.2: current")
+
+    def test_an_available_update_is_recorded_with_its_version(self, tmp_path: Path):
+        log = tmp_path / "update-check.log"
+        release = Release(version="2.0.0", notes="", url="u", size=0, page="p")
+        updater.record_check(updater.CheckResult(release=release), current="1.0.0", path=log)
+        assert "update available: 2.0.0" in log.read_text(encoding="utf-8")
+
+    def test_defaults_to_the_settings_folder(self, tmp_path: Path):
+        # The autouse fixture points FITZLCD_HOME at tmp_path / "home".
+        updater.record_check(updater.CheckResult(error="boom"))
+        assert (tmp_path / "home" / "update-check.log").is_file()
+
+    def test_an_unwritable_log_never_fails_the_check(self, tmp_path: Path):
+        blocker = tmp_path / "not-a-folder"
+        blocker.write_text("x", encoding="utf-8")
+        updater.record_check(updater.CheckResult(), path=blocker / "nested" / "log.txt")
+
+
 class TestStage:
     def test_extracts_a_valid_build(self, tmp_path: Path):
         archive = make_build_zip(tmp_path / "build.zip")

@@ -49,3 +49,38 @@ def test_cancel_does_not_launch_helper(controller, monkeypatch, tmp_path):
     monkeypatch.setattr(updater, "apply_and_restart", lambda staged: launched.append(staged))
     controller._on_downloaded(_release(), tmp_path)
     assert launched == []
+
+
+def test_a_failed_manual_check_says_why(controller, monkeypatch, tmp_path):
+    monkeypatch.setenv("FITZLCD_HOME", str(tmp_path))
+    shown = []
+    monkeypatch.setattr(updates.QMessageBox, "warning", lambda *a, **k: shown.append(a))
+    controller._on_checked((updater.CheckResult(error="GitHub answered HTTP 403"), False))
+    assert shown, "a check the user asked for failed silently"
+    assert "HTTP 403" in shown[0][2]
+    assert "latest version" not in shown[0][2], "a failure was reported as up to date"
+
+
+def test_a_failed_check_does_not_count_as_checked(controller, monkeypatch, tmp_path):
+    monkeypatch.setenv("FITZLCD_HOME", str(tmp_path))
+    monkeypatch.setattr(updates.QMessageBox, "warning", lambda *a, **k: None)
+    controller.config.update_last_check = 0.0
+    controller._on_checked((updater.CheckResult(error="timed out"), True))
+    assert controller.config.update_last_check == 0.0, "a failed check blocked retries for a day"
+
+
+def test_a_failed_automatic_check_stays_quiet(controller, monkeypatch, tmp_path):
+    monkeypatch.setenv("FITZLCD_HOME", str(tmp_path))
+    shown = []
+    monkeypatch.setattr(updates.QMessageBox, "warning", lambda *a, **k: shown.append(a))
+    controller._on_checked((updater.CheckResult(error="timed out"), True))
+    assert shown == []
+
+
+def test_a_manual_check_that_finds_an_update_says_so(controller, monkeypatch, tmp_path):
+    monkeypatch.setenv("FITZLCD_HOME", str(tmp_path))
+    shown = []
+    monkeypatch.setattr(updates.QMessageBox, "information", lambda *a, **k: shown.append(a))
+    controller._on_checked((updater.CheckResult(release=_release()), False))
+    assert shown and "9.9.9" in shown[0][2]
+    assert controller.button.text() == "Update to v9.9.9"

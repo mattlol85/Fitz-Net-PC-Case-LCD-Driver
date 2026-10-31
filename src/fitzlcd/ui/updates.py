@@ -18,7 +18,7 @@ from PySide6.QtWidgets import QMessageBox, QProgressDialog, QPushButton, QSystem
 from fitzlcd import updater
 from fitzlcd.config import AppConfig
 from fitzlcd.ui.theme import COLORS, STATUS_COLORS
-from fitzlcd.updater import Release
+from fitzlcd.updater import CheckResult, Release
 
 log = logging.getLogger(__name__)
 
@@ -84,19 +84,36 @@ class UpdateController(QObject):
 
         def work() -> None:
             try:
-                release = updater.check()
+                result = updater.check_detailed()
             except Exception as exc:  # noqa: BLE001 - else _busy sticks and checks stop forever
                 log.warning("update check crashed: %s", exc)
-                release = None
-            self.checked.emit((release, announce))
+                result = CheckResult(error=f"{type(exc).__name__}: {exc}".rstrip(": "))
+            updater.record_check(result)
+            self.checked.emit((result, announce))
 
         threading.Thread(target=work, daemon=True).start()
 
     # ----------------------------------------------------------------- results
 
     def _on_checked(self, payload) -> None:
-        release, announce = payload
+        result, announce = payload
         self._busy = False
+        release = result.release
+
+        if release is None and result.error:
+            # The check did not finish, so it does not count as "checked". Leave the
+            # timestamp alone: the next launch tries again instead of waiting a day,
+            # and a button showing a known update keeps showing it.
+            if not announce:
+                QMessageBox.warning(
+                    self.parent(),
+                    "Couldn't check for updates",
+                    "FitzLCD could not check for updates.\n\n"
+                    f"{result.error}\n\n"
+                    f"Details are recorded in {updater.check_log_path()}.",
+                )
+            return
+
         self.config.update_last_check = time.time()
         self.config.save()
 
@@ -116,7 +133,15 @@ class UpdateController(QObject):
         self.button.setToolTip(f"Version {release.version} is available. Click to install it.")
         self.button.setStyleSheet(f"color: {STATUS_COLORS['connected']};")
 
-        if announce and release.version != self.config.update_skipped_version and self.tray:
+        if not announce:
+            # A check the user asked for should say what it found, not just relabel a button.
+            QMessageBox.information(
+                self.parent(),
+                "Update available",
+                f"Version {release.version} is available.\n\n"
+                f'Click "Update to v{release.version}" to download and install it.',
+            )
+        elif release.version != self.config.update_skipped_version and self.tray:
             self.tray.showMessage(
                 "FitzLCD update available",
                 f"Version {release.version} is ready to install.",

@@ -596,7 +596,7 @@ class TestUpdateButton:
 
     def test_offers_the_version_once_a_check_finds_one(self, window, qt_app):
         from fitzlcd.ui.updates import UpdateController
-        from fitzlcd.updater import Release
+        from fitzlcd.updater import CheckResult, Release
 
         controller = UpdateController(window.update_btn, window.config, parent=window)
         assert controller.button.text() == "Check for updates"
@@ -608,7 +608,7 @@ class TestUpdateButton:
             size=1,
             page="https://example.invalid",
         )
-        controller._on_checked((release, True))
+        controller._on_checked((CheckResult(release=release), True))
 
         assert controller.available is release
         assert controller.button.text() == "Update to v9.9.9"

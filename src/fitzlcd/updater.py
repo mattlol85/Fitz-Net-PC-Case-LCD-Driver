@@ -27,6 +27,7 @@ import urllib.request
 import zipfile
 from collections.abc import Callable
 from dataclasses import dataclass
+from datetime import datetime
 from pathlib import Path
 
 from fitzlcd import __version__
@@ -144,10 +145,25 @@ def _pick_asset(assets: list[dict]) -> dict | None:
     return zips[0] if len(zips) == 1 else None
 
 
-def check(current: str = __version__, fetch: Fetch | None = None) -> Release | None:
-    """Return the newer release, or ``None`` if we're current or can't tell.
+@dataclass(frozen=True)
+class CheckResult:
+    """What one update check found.
 
-    Never raises: a failed check must not disturb a running app.
+    ``release`` is set when a newer build exists. ``error`` is set when the check
+    could not be completed, and says why. Both empty means the check worked and
+    this build is current. The two are kept apart so a failed check is never
+    mistaken for "you're up to date".
+    """
+
+    release: Release | None = None
+    error: str = ""
+
+
+def check_detailed(current: str = __version__, fetch: Fetch | None = None) -> CheckResult:
+    """Look for a newer release and report exactly what happened.
+
+    Never raises: a failed check must not disturb a running app. The reason for a
+    failure comes back in ``CheckResult.error`` instead of disappearing.
     """
     get = fetch or _http_get
     headers = {
@@ -157,26 +173,65 @@ def check(current: str = __version__, fetch: Fetch | None = None) -> Release | N
     try:
         status, body = get(LATEST_URL, headers)
         if status != 200:
-            log.info("update check: HTTP %s", status)
-            return None
+            return CheckResult(error=f"GitHub answered HTTP {status}")
         data = json.loads(body)
+        if not isinstance(data, dict):
+            return CheckResult(error="GitHub's reply was not the expected kind of data")
         version = str(data.get("tag_name", "")).lstrip("vV")
-        if not version or not is_newer(version, current):
-            return None
+        if not version:
+            return CheckResult(error="the latest release has no version tag")
+        if not is_newer(version, current):
+            return CheckResult()
         asset = _pick_asset(data.get("assets") or [])
         if not asset or not asset.get("browser_download_url"):
-            log.info("update check: release %s has no Windows zip", version)
-            return None
-        return Release(
-            version=version,
-            notes=str(data.get("body") or "").strip(),
-            url=str(asset["browser_download_url"]),
-            size=int(asset.get("size") or 0),
-            page=str(data.get("html_url") or RELEASES_PAGE),
+            return CheckResult(error=f"release {version} has no Windows build to download")
+        return CheckResult(
+            release=Release(
+                version=version,
+                notes=str(data.get("body") or "").strip(),
+                url=str(asset["browser_download_url"]),
+                size=int(asset.get("size") or 0),
+                page=str(data.get("html_url") or RELEASES_PAGE),
+            )
         )
     except Exception as exc:  # noqa: BLE001 - a failed check must never propagate
         log.info("update check failed: %s", exc)
-        return None
+        return CheckResult(error=f"{type(exc).__name__}: {exc}".rstrip(": "))
+
+
+def check(current: str = __version__, fetch: Fetch | None = None) -> Release | None:
+    """Return the newer release, or ``None`` if we're current or can't tell."""
+    return check_detailed(current, fetch).release
+
+
+def check_log_path() -> Path:
+    """Where each check's outcome is appended, next to the settings file."""
+    # Deferred import: config imports the scene library, which would cycle.
+    from fitzlcd.config import app_dir
+
+    return app_dir() / "update-check.log"
+
+
+def record_check(result: CheckResult, current: str = __version__, path: Path | None = None) -> None:
+    """Append one line describing ``result``. Best effort: logging never fails a check.
+
+    The windowed build has no console, so this file is the only place a user's
+    failed check leaves a trace.
+    """
+    if result.error:
+        outcome = f"error: {result.error}"
+    elif result.release is not None:
+        outcome = f"update available: {result.release.version}"
+    else:
+        outcome = "current"
+    line = f"{datetime.now().isoformat(timespec='seconds')} running {current}: {outcome}\n"
+    try:
+        target = path or check_log_path()
+        target.parent.mkdir(parents=True, exist_ok=True)
+        with target.open("a", encoding="utf-8") as handle:
+            handle.write(line)
+    except OSError as exc:
+        log.debug("could not write the update-check log: %s", exc)
 
 
 # ------------------------------------------------------------------- download
