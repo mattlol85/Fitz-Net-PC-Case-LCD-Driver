@@ -51,3 +51,10 @@ def with_alpha(color: RGBA, alpha: float) -> RGBA:
     """Scale a colour's alpha by ``alpha`` (0.0-1.0)."""
     r, g, b, a = color
     return (r, g, b, max(0, min(255, int(a * max(0.0, min(1.0, alpha))))))
+
+
+def mix(a: RGBA, b: RGBA, t: float) -> RGBA:
+    """Blend channel by channel from ``a`` (``t=0``) to ``b`` (``t=1``)."""
+    t = max(0.0, min(1.0, t))
+    blended = (round(x + (y - x) * t) for x, y in zip(a, b, strict=True))
+    return tuple(blended)  # type: ignore[return-value]

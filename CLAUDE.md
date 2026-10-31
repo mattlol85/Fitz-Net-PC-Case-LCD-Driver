@@ -81,6 +81,16 @@ they never change scene JSON). Metric keys get human labels from
 marks a layer as needing per-frame redraw (metrics, clocks) versus static
 content the compositor can cache.
 
+**Motion is stateless first.** Animation is opt-in per layer (the `animation`
+section; all off by default, so existing scenes render unchanged) and lives in
+`render/motion.py`. Prefer a pure function of `ctx.time`. Only what must remember
+the previous frame (an eased reading, an integrated spin angle) keeps state, on
+the layer instance and never in `FIELDS`, so it stays out of scene JSON. Time
+going backwards means the scene restarted, and state snaps rather than easing.
+Gallery thumbnails sample `t = 1.1s`, so a start-up sweep must finish inside
+that. An `animation` section missing from `ui/properties.py` `SECTIONS` hides
+its fields in the inspector without any error.
+
 **Metrics are a flat dotted namespace**, e.g. `cpu.load`, `gpu.temp`,
 `claude.today.tokens`. `MetricProvider` subclasses in `sources/*.py` are
 polled on one background thread by `StatsRegistry` (`sources/stats.py`) and

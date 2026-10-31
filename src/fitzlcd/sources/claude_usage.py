@@ -19,6 +19,11 @@ Metric names, dotted like the rest of ``sources/*``:
     claude.week.tokens  claude.week.cost_usd
     claude.total.tokens  claude.total.cost_usd  claude.total.sessions
     claude.model  claude.last_active_seconds_ago  claude.status_text
+    claude.active
+
+``claude.active`` is 1.0 while a transcript was written within
+:data:`ACTIVE_WINDOW_SECONDS`, else 0.0. It is omitted when there is no
+transcript at all, so "idle" and "unknown" stay distinct.
 
 Cost is a notional "if this were metered API usage" estimate from list
 pricing below - most Claude Code usage is billed against a Pro/Max
@@ -41,6 +46,11 @@ from typing import Any
 from fitzlcd.sources.stats import MetricProvider
 
 log = logging.getLogger(__name__)
+
+#: A transcript written this recently counts as Claude Code working right now.
+#: Long single generations can go quiet longer than this; raise it if the mark
+#: drops out mid-task.
+ACTIVE_WINDOW_SECONDS = 45.0
 
 #: (input, output, cache_write, cache_read) USD per 1M tokens, keyed by a
 #: substring of the model id. First match wins; order matters.
@@ -188,6 +198,7 @@ class ClaudeUsageProvider(MetricProvider):
         self._last_scan = 0.0
         self._last_event_epoch: float | None = None
         self._last_model: str = ""
+        self._newest_path: Path | None = None
         self._snapshot: dict[str, Any] = {}
 
         self._scan()
@@ -210,7 +221,32 @@ class ClaudeUsageProvider(MetricProvider):
                 0.0, time.time() - self._last_event_epoch
             )
             snapshot["claude.status_text"] = ""
+
+        working = self._working_now()
+        if working is not None:
+            snapshot["claude.active"] = 1.0 if working else 0.0
         return snapshot
+
+    def _working_now(self) -> bool | None:
+        """Whether the newest transcript was written within :data:`ACTIVE_WINDOW_SECONDS`.
+
+        Reads the file's mtime rather than the last event time, which only moves
+        on a rescan. ``None`` when there is no transcript, so the metric is
+        omitted rather than reported as idle.
+        """
+        with self._lock:
+            path = self._newest_path
+            fallback = self._last_event_epoch
+        if path is None:
+            return None
+        try:
+            written = path.stat().st_mtime
+        except OSError:
+            # Deleted since the last scan: fall back to the last event we saw.
+            if fallback is None:
+                return None
+            written = fallback
+        return time.time() - written <= ACTIVE_WINDOW_SECONDS
 
     # ------------------------------------------------------------- scanning
 
@@ -247,11 +283,13 @@ class ClaudeUsageProvider(MetricProvider):
     def _publish(self) -> None:
         day_totals: dict[str, _DayTotals] = {}
         last_event: tuple[float, str] | None = None
-        for days, last in self._file_meta.values():
+        newest_path: Path | None = None
+        for path, (days, last) in self._file_meta.items():
             for day, totals in days.items():
                 day_totals.setdefault(day, _DayTotals()).add(totals)
             if last is not None and (last_event is None or last[0] > last_event[0]):
                 last_event = last
+                newest_path = path
 
         today_key = date.today().isoformat()
         today = day_totals.get(today_key, _DayTotals())
@@ -287,5 +325,6 @@ class ClaudeUsageProvider(MetricProvider):
         with self._lock:
             self._snapshot = snapshot
             self._last_model = model
+            self._newest_path = newest_path
             if last_event is not None:
                 self._last_event_epoch = last_event[0]

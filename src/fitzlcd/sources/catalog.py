@@ -107,6 +107,7 @@ KNOWN: dict[str, MetricInfo] = {
         _m("claude.week.cost_usd", "Estimated cost this week", ",.2f"),
         _m("claude.total.tokens", "Tokens all time", ",.0f"),
         _m("claude.model", "Current model"),
+        _m("claude.active", "Claude Code is working"),
         _m("claude.limits.session.pct", "Session limit used", ".0f", "%", True),
         _m("claude.limits.session.resets_text", "Session limit resets in"),
         _m("claude.limits.week.pct", "Weekly limit used", ".0f", "%", True),

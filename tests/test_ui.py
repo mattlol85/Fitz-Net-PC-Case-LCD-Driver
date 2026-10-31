@@ -123,6 +123,27 @@ class TestPropertiesPane:
         assert pane.sections["advanced"].header.isChecked() is False
         assert pane.sections["content"].header.isChecked() is True
 
+    def test_animation_fields_get_their_own_section(self, qt_app):
+        pane = PropertiesPane()
+        ring = Scene.from_dict({"layers": [{"type": "donut"}]}).layers[0]
+        pane.show_layer(ring)
+        assert list(pane.sections) == [
+            "content",
+            "layout",
+            "appearance",
+            "animation",
+            "advanced",
+        ]
+
+    def test_every_registered_field_lands_in_a_listed_section(self, qt_app):
+        from fitzlcd.render.scene import layer_types
+        from fitzlcd.ui.properties import SECTIONS
+
+        listed = {key for key, _ in SECTIONS}
+        for name, cls in layer_types().items():
+            for spec in cls.FIELDS:
+                assert spec.group in listed, f"{name}.{spec.name} would be hidden"
+
     def test_editing_a_field_updates_the_layer(self, qt_app):
         pane = PropertiesPane()
         layer = text_layer()

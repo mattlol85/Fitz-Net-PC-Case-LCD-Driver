@@ -17,7 +17,9 @@ added without touching anything above the driver layer.
   composed in what you actually see and the output transform follows.
 - **Composes scenes** from a stack of layers: media (image / GIF / video), text
   with live `{cpu.load:.0f}` style metric tokens, bar gauges, ring gauges,
-  sparklines, a clock, solid/gradient fills, and a spark mark.
+  sparklines, a clock, solid/gradient fills, and a spark mark. Rings and the
+  spark can animate: sweep in, glide to new readings, flash the slice a rise
+  added, pulse past the warn line, and quicken while Claude Code is working.
 - **Nine built-in scenes** including a monospace terminal readout, flipped
   through by hand or on a timer.
 - **Live system data** from psutil and NVML: CPU, memory, disk, network, and GPU

@@ -1073,7 +1073,10 @@ def _claude_usage() -> dict[str, Any]:
 
     Styled to look like Claude Code rather than like the rest of the library:
     Claude's own warm palette, monospace throughout because the thing being
-    measured is a terminal, and the spark mark turning slowly beside the title.
+    measured is a terminal, and the spark mark beside the title. The rings sweep
+    in when the scene starts and glide to each new reading, and a rise lights up
+    the slice it just added before it cools. The spark turns slowly at rest and
+    faster while Claude Code is working.
     """
     # Both rings are the same orange: they are one brand, told apart by their
     # labels rather than by hue, which leaves colour free to mean "getting close
@@ -1087,6 +1090,14 @@ def _claude_usage() -> dict[str, Any]:
         "sub_color": CLAUDE_DIM,
         "warn_color": CLAUDE_WARN,
         "critical_color": CLAUDE_CRIT,
+        # Motion. Fill in on start, glide to new readings, highlight the slice a
+        # rise has just added, and dim past warn. The sweep stays under a second
+        # so the gallery thumbnail (sampled at t=1.1s) shows a finished ring.
+        "sweep_in": 0.9,
+        "glide": 1.2,
+        "gain_flash": 2.5,
+        "gain_color": CLAUDE_CREAM,
+        "pulse": 0.5,
     }
     session_ring = {
         **ring,
@@ -1099,6 +1110,16 @@ def _claude_usage() -> dict[str, Any]:
         "metric": "claude.limits.week.pct",
         "text": "{claude.limits.week.pct:.0f}%",
         "sub_text": "WEEK",
+    }
+
+    # Idle, the mark turns slowly and its arms breathe. While Claude Code is
+    # working (claude.active), it turns faster and lifts toward white.
+    spark_motion = {
+        "spin": 8,
+        "active_metric": "claude.active",
+        "active_spin": 90,
+        "active_glow": 0.35,
+        "breathe": 0.12,
     }
 
     wide = [
@@ -1152,7 +1173,7 @@ def _claude_usage() -> dict[str, Any]:
             "color": CLAUDE_ORANGE,
             "arm_width": 9,
             "taper": 0.25,
-            "spin": 12,
+            **spark_motion,
         },
         {
             "type": "text",
@@ -1278,7 +1299,7 @@ def _claude_usage() -> dict[str, Any]:
             "color": CLAUDE_ORANGE,
             "arm_width": 9,
             "taper": 0.25,
-            "spin": 12,
+            **spark_motion,
         },
         {
             "type": "text",
@@ -1457,10 +1478,13 @@ def _claude_usage() -> dict[str, Any]:
     return {
         "version": 1,
         "name": "Claude Usage",
-        # 10 rather than the 2 the readouts need, so the spark's turn reads as
-        # motion instead of stutter. Set the spark's "spin" to 0 and this back to
-        # 2 to restore the cheaper scene exactly.
-        "fps": 10,
+        # 15 rather than the 2 the readouts need, so the ring glides and the
+        # spark's turn read as motion instead of stutter. Well inside the DS916's
+        # 30 fps ceiling, and the engine drops frames rather than queueing them,
+        # so a slow frame costs smoothness only. To restore the static scene, set
+        # the rings' "sweep_in", "glide", "gain_flash" and "pulse" to 0 and the
+        # sparks' "spin", "breathe" and "active_metric" to 0 / "", and this to 2.
+        "fps": 15,
         "background": CLAUDE_INK,
         "layers": [
             {"type": "solid", "color": CLAUDE_PANEL, "color2": CLAUDE_INK},
