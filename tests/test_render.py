@@ -150,6 +150,9 @@ class TestSceneModel:
             "spark",
             "cs2_hit_timeline",
             "cs2_hit_flash",
+            "wow_map",
+            "wow_unit_frame",
+            "wow_party",
         }
 
     def test_every_layer_type_round_trips_from_its_defaults(self):

@@ -112,6 +112,21 @@ endpoint throttles permanently at any interval — and there is deliberately no
 OAuth refresh flow, because rotating the refresh token could invalidate the
 user's real Claude Code login.
 
+**WoW data arrives as pixels.** `sources/wow/` reads a strip the bundled addon
+(`sources/wow/addon/FitzLCD/*.lua`) paints in the game's corner: addons have no
+other way out. `protocol.py` and `Protocol.lua` are two halves of one wire format;
+change both together and bump `VERSION`. `tests/test_wow_addon.py` runs the real
+Lua under lupa and decodes it in Python to keep them honest. Forever lives in the
+install's `_forever_` folder, product `wowf`, and its exe is plain `Wow.exe` (same
+name as retail), so the capture ranks processes by folder, not name. Map art and the class icon come
+from the local CASC storage (`casc.py`, read-only, `N`/`Z` BLTE only). The one
+exception to "everything rides the strip" is the player portrait: the addon sends
+the PlayerFrame portrait's screen rect (`pr`) and the provider copies that square
+off the screen about once a second, tied to the character's name so an alt never
+shows the wrong face. `Share.lua` broadcasts each member's *own* readable position
+over addon messages as a fallback (`M_SHARED`); it can never reveal what the
+sender's game hides. Never read game memory or send input.
+
 **Orientation is one number, resolved in two places.**
 `PanelCaps.rotated(degrees)` swaps the frame geometry for scene composition,
 and the mounting angle is folded into the panel's own scan-out transform

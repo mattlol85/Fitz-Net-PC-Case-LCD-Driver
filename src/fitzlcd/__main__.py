@@ -63,6 +63,8 @@ def run_headless(args: argparse.Namespace) -> int:
     from fitzlcd.sources.claude_limits import ClaudeLimitsProvider
     from fitzlcd.sources.cs2gsi import Cs2GsiProvider, write_cs2_gsi_cfg
     from fitzlcd.sources.stats import StatsRegistry
+    from fitzlcd.sources.wow import WowError
+    from fitzlcd.sources.wow.provider import WowProvider
 
     config = AppConfig.load()
     config = ensure_cs2_gsi_token(config)
@@ -89,6 +91,11 @@ def run_headless(args: argparse.Namespace) -> int:
         logging.getLogger(__name__).warning("CS2 GSI listener unavailable: %s", exc)
     if config.claude_limits_enabled:
         stats.add(ClaudeLimitsProvider(poll_seconds=config.claude_limits_poll_seconds))
+    if config.wow_enabled:
+        try:
+            stats.add(WowProvider.from_config(config))
+        except (OSError, WowError) as exc:
+            logging.getLogger(__name__).warning("WoW integration unavailable: %s", exc)
     logging.getLogger(__name__).info("metric providers: %s", ", ".join(stats.provider_names))
     stats.start()
 

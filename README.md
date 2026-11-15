@@ -50,6 +50,7 @@ The same scenes with the panel mounted on its side (462×1920):
 | **Wallpaper** | Your image, GIF or video with a clock over it |
 | **CS2 HUD** | Live Counter-Strike 2 match state via Game State Integration |
 | **Claude Usage** | Claude Code session and weekly limit rings, tokens and cost, in Claude's own colours |
+| **WoW Forever** | World of Warcraft: Forever: the live zone map with your party's dots, XP, gold and session stats |
 
 ## Installing
 
@@ -181,6 +182,29 @@ Disable it with `claude_limits_enabled: false` in `config.json`. When it cannot
 get a reading, `claude.limits.status_text` explains why (`NOT SIGNED IN`,
 `RATE LIMITED`, `STALE`, `OFFLINE`) and the percentages stay absent rather than
 showing a misleading zero.
+
+#### World of Warcraft: Forever
+
+WoW addons cannot open a socket or write a file while the game runs, so there is
+no API to push live data out. The small **FitzLCD addon** draws a thin strip of
+coloured cells (3 px tall) in the game's top-left corner instead, and the app
+reads those pixels off the screen ten times a second. Install it from
+**Settings > Integrations > WoW: Forever**, then `/reload` in game.
+
+* The game must be windowed or *Windowed (Fullscreen)*, with its top-left corner
+  visible. `/fitzlcd off` hides the strip, `/fitzlcd on` brings it back.
+* The map art is the game's own: the addon names the zone's map tiles and the app
+  reads them from your local install, caching one PNG per zone under
+  `%APPDATA%\FitzLCD\wow\maps`. Until a zone's art is ready a grid is drawn.
+* Health is secret to addons in combat, and the game hides positions inside
+  dungeons. Those show as `—` or a note on the map, never a made-up value.
+* When the game closes, the last map and party stay up with a "last seen" line.
+
+`wow.zone` `wow.subzone` `wow.coords_text` `wow.player.level` `wow.player.class`
+`wow.player.health_pct` `wow.xp.pct` `wow.xp.rested_pct` `wow.gold_text`
+`wow.session.played_text` `wow.session.xp_per_hour` `wow.durability.pct`
+`wow.bags.free` `wow.target.text` `wow.status_text` `wow.last_seen_text`, plus
+the `wow_map` and `wow_party` layers. Nothing reads game memory or sends input.
 
 ### Fit modes
 

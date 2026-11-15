@@ -15,6 +15,8 @@ from fitzlcd.engine import EngineConfig, RenderEngine
 from fitzlcd.sources.claude_limits import ClaudeLimitsProvider
 from fitzlcd.sources.cs2gsi import Cs2GsiProvider, write_cs2_gsi_cfg
 from fitzlcd.sources.stats import StatsRegistry
+from fitzlcd.sources.wow import WowError
+from fitzlcd.sources.wow.provider import WowProvider
 from fitzlcd.ui.icons import app_icon
 from fitzlcd.ui.main_window import MainWindow
 from fitzlcd.ui.theme import apply_theme
@@ -70,6 +72,11 @@ def run_gui(args=None) -> int:
         log.warning("CS2 GSI listener unavailable: %s", exc)
     if config.claude_limits_enabled:
         stats.add(ClaudeLimitsProvider(poll_seconds=config.claude_limits_poll_seconds))
+    if config.wow_enabled:
+        try:
+            stats.add(WowProvider.from_config(config))
+        except (OSError, WowError) as exc:
+            log.warning("WoW integration unavailable: %s", exc)
     log.info("metric providers: %s", ", ".join(stats.provider_names))
     stats.start()
 

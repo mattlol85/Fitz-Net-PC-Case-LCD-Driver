@@ -59,6 +59,8 @@ ADD_ORDER = (
     "spark",
     "cs2_hit_timeline",
     "cs2_hit_flash",
+    "wow_map",
+    "wow_party",
 )
 
 
@@ -301,7 +303,8 @@ class CustomizeView(QWidget):
         ordered += sorted(name for name in registered if name not in ADD_ORDER)
         for i, name in enumerate(ordered):
             cls = registered[name]
-            if name.startswith("cs2") and i and not ordered[i - 1].startswith("cs2"):
+            game = name.split("_", 1)[0] if name.startswith(("cs2", "wow")) else ""
+            if game and i and not ordered[i - 1].startswith(game):
                 menu.addSeparator()
             action = menu.addAction(icons.icon(cls.icon), cls.friendly_name())
             action.setToolTip(cls.summary)

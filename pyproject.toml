@@ -23,6 +23,8 @@ dev = [
     "ruff>=0.6",
     "black>=24.0",
     "pyinstaller>=6.10",
+    # Runs the WoW addon's Lua under test (tests/test_wow_addon.py).
+    "lupa>=2.0",
 ]
 
 [project.scripts]
@@ -30,6 +32,9 @@ fitzlcd = "fitzlcd.__main__:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.setuptools.package-data]
+"fitzlcd.sources.wow" = ["addon/FitzLCD/*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
