@@ -135,6 +135,14 @@ class SettingsDialog(QDialog):
         cs2_row.addWidget(window.cs2_btn)
         form.addRow("Counter-Strike 2", cs2_row)
         window._refresh_cs2_button()
+        wow_row = QHBoxLayout()
+        window.wow_status = _muted()
+        window.wow_btn = QPushButton("Set up")
+        window.wow_btn.clicked.connect(window._on_wow_setup)
+        wow_row.addWidget(window.wow_status, 1)
+        wow_row.addWidget(window.wow_btn)
+        form.addRow("WoW: Forever", wow_row)
+        window._refresh_wow_button()
         column.addWidget(box)
 
         # ------------------------------------------------------------ about

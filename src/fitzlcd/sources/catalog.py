@@ -22,6 +22,7 @@ GROUPS = (
     "Claude",
     "Claude usage limits",
     "Counter-Strike 2",
+    "World of Warcraft",
     "Other",
 )
 
@@ -35,6 +36,7 @@ _PREFIX_GROUPS = {
     "claude.limits": "Claude usage limits",
     "claude": "Claude",
     "cs2": "Counter-Strike 2",
+    "wow": "World of Warcraft",
 }
 
 
@@ -119,6 +121,38 @@ KNOWN: dict[str, MetricInfo] = {
         _m("cs2.player.active_weapon.name", "Weapon"),
         _m("cs2.map.name", "Map"),
         _m("cs2.map.round", "Round"),
+        _m("wow.status_text", "Game status"),
+        _m("wow.last_seen_text", "Last seen in game"),
+        _m("wow.player.name", "Character name"),
+        _m("wow.player.level", "Character level"),
+        _m("wow.player.class", "Character class"),
+        _m("wow.player.health_pct", "Your health", ".0f", "%", True),
+        _m("wow.player.power_pct", "Your mana / energy", ".0f", "%", True),
+        _m("wow.player.hp", "Your health (points)", ",.0f"),
+        _m("wow.player.hp_max", "Your maximum health", ",.0f"),
+        _m("wow.player.power", "Your mana / energy (points)", ",.0f"),
+        _m("wow.player.power_max", "Your maximum mana / energy", ",.0f"),
+        _m("wow.player.power_type", "Power type (mana, rage, energy)"),
+        _m("wow.player.state_text", "Combat / resting / dead"),
+        _m("wow.zone", "Zone"),
+        _m("wow.subzone", "Subzone"),
+        _m("wow.location_text", "Subzone and zone"),
+        _m("wow.coords_text", "Map coordinates"),
+        _m("wow.xp.pct", "Experience to next level", ".0f", "%", True),
+        _m("wow.xp.rested_pct", "Rested experience", ".0f", "%", True),
+        _m("wow.xp.text", "Experience (points)"),
+        _m("wow.gold_text", "Gold"),
+        _m("wow.session.played_text", "Played this session"),
+        _m("wow.session.xp", "Experience this session", ",.0f"),
+        _m("wow.session.xp_per_hour", "Experience per hour", ",.0f"),
+        _m("wow.session.gold_text", "Gold this session"),
+        _m("wow.session.deaths", "Deaths this session"),
+        _m("wow.session.level_ups", "Levels this session"),
+        _m("wow.durability.pct", "Lowest gear durability", ".0f", "%", True),
+        _m("wow.bags.free", "Free bag slots"),
+        _m("wow.target.text", "Target"),
+        _m("wow.target.name", "Target name"),
+        _m("wow.party.count", "Party members"),
     )
 }
 

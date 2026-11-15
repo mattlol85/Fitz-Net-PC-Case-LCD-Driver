@@ -73,6 +73,13 @@ class AppConfig:
     #: Seconds between polls. Floor-clamped to 180 s by the provider: the endpoint
     #: throttles hard, and this bucket is shared with your own Claude Code.
     claude_limits_poll_seconds: int = 300
+    #: Read the FitzLCD WoW addon's pixel strip off the screen while the game runs.
+    wow_enabled: bool = True
+    #: Where World of Warcraft is installed, when it can't be found on its own:
+    #: the install root or its ``_forever_`` folder. Blank means auto-detect.
+    wow_install_dir: str = ""
+    #: Strip reads per second (1-30). Each is a few hundred pixels.
+    wow_capture_hz: int = 10
     #: Look for a newer release on launch and once a day. Only ever does
     #: anything in the packaged build; source installs update through git/pip.
     update_check_enabled: bool = True

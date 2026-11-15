@@ -10,6 +10,7 @@ from fitzlcd.render.layers.gauge import GaugeLayer, SparklineLayer
 from fitzlcd.render.layers.media import MediaLayer, SolidLayer
 from fitzlcd.render.layers.spark import SparkLayer
 from fitzlcd.render.layers.text import ClockLayer, TextLayer
+from fitzlcd.render.layers.wow import WowMapLayer, WowPartyLayer
 
 __all__ = [
     "ClockLayer",
@@ -22,4 +23,6 @@ __all__ = [
     "SparkLayer",
     "SparklineLayer",
     "TextLayer",
+    "WowMapLayer",
+    "WowPartyLayer",
 ]

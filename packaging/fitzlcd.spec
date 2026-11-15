@@ -21,7 +21,13 @@ a = Analysis(
     [str(ROOT / "src" / "fitzlcd" / "__main__.py")],
     pathex=[str(ROOT / "src")],
     binaries=[],
-    datas=[],
+    # The WoW addon is copied into the game from here by Settings > Integrations.
+    datas=[
+        (
+            str(ROOT / "src" / "fitzlcd" / "sources" / "wow" / "addon" / "FitzLCD"),
+            "fitzlcd/sources/wow/addon/FitzLCD",
+        )
+    ],
     hiddenimports=hidden,
     excludes=[
         # Qt modules the app never touches; they roughly double the bundle.

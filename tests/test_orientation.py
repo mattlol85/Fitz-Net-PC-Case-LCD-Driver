@@ -19,6 +19,7 @@ from fitzlcd.render.geometry import Anchor, parse_anchor, resolve, resolve_rect,
 from fitzlcd.render.layers.text import MIN_FONT_SIZE, TextLayer, _fitted_size
 from fitzlcd.render.scene import Layer, Scene
 from fitzlcd.scenes_builtin import DEFAULT_SCENES
+from fitzlcd.sources.wow.demo import demo_metrics
 
 LANDSCAPE = (1920, 462)
 PORTRAIT = (462, 1920)
@@ -60,6 +61,11 @@ SAMPLE_METRICS = {
     "claude.limits.week.resets_text": "6d 23h",
     "claude.limits.week_sonnet.pct": 100.0,
     "claude.limits.status_text": "",
+    # WoW: a full party with long names, the longest gold and target strings.
+    **demo_metrics(),
+    "wow.gold_text": "9,999,999g 99s 99c",
+    "wow.target.text": "Highlord Kruul the Unyielding · ?? Rare Elite",
+    "wow.location_text": "The Great Sea of Thousand Needles, Southern Barrens",
 }
 
 

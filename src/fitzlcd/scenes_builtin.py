@@ -1495,6 +1495,664 @@ def _claude_usage() -> dict[str, Any]:
     }
 
 
+#: World of Warcraft palette: the game's own gold on dark leather and parchment.
+WOW_GOLD = "#ffd100"
+WOW_PARCHMENT = "#f5ebdd"
+WOW_DIM = "#b9a98ccc"
+WOW_INK = "#0c0a08"
+WOW_PANEL = "#1d1712"
+WOW_RESTED = "#4aa3ff"
+WOW_HOSTILE = "#ff7a66"
+
+
+def _wow_forever() -> dict[str, Any]:
+    """World of Warcraft: Forever: the live zone map with your party on it.
+
+    Fed by the FitzLCD addon's pixel strip (``sources/wow``). The map fills
+    one side; zone, level and experience sit beside it, with the party roster,
+    target and session numbers last. When the game is closed everything stays
+    up as it was last seen, with a status and "last seen" line on the map.
+    """
+    text = {"type": "text", "font": "sans", "color": WOW_PARCHMENT}
+    dim = {**text, "color": WOW_DIM}
+    map_layer = {
+        "type": "wow_map",
+        "name": "map",
+        "view": "party",
+        "zoom": 3.0,
+        "font": "sans",
+        "player_color": WOW_GOLD,
+        "name_color": WOW_PARCHMENT,
+        "backdrop_color": "#14110d",
+        "grid_color": "#ffd10022",
+        "border_color": "#ffd10033",
+        "glide": 0.9,
+        "ping": 3.0,
+    }
+    xp_bar = {
+        "type": "gauge",
+        "metric": "wow.xp.pct",
+        "color": WOW_GOLD,
+        "track_color": "#ffffff14",
+    }
+    rested_bar = {
+        "type": "gauge",
+        "metric": "wow.xp.rested_pct",
+        "color": WOW_RESTED,
+        "track_color": "#00000000",
+        "radius": 3,
+    }
+    party = {
+        "type": "wow_party",
+        "name": "party",
+        "font": "sans",
+        "text_color": WOW_PARCHMENT,
+        "dim_color": WOW_DIM,
+    }
+    level = "LEVEL {wow.player.level}  {wow.player.class}"
+    xp_detail = "{wow.xp.pct:.1f}% XP   {wow.xp.rested_pct:.0f}% rested"
+
+    def wide_(layer: dict[str, Any]) -> dict[str, Any]:
+        return {**layer, "orientation": "landscape"}
+
+    def tall_(layer: dict[str, Any]) -> dict[str, Any]:
+        return {
+            **layer,
+            "name": f"{layer.get('name', layer['type'])} (tall)",
+            "orientation": "portrait",
+        }
+
+    wide = [
+        wide_({**map_layer, "rect": ["1%", "4%", "42%", "92%"]}),
+        wide_(
+            {
+                **text,
+                "name": "zone",
+                "text": "{wow.zone}",
+                "size": 46,
+                "pos": ["45%", "5%"],
+                "color": WOW_GOLD,
+                "shadow": True,
+            }
+        ),
+        wide_(
+            {**text, "name": "subzone", "text": "{wow.subzone}", "size": 28, "pos": ["45%", "19%"]}
+        ),
+        wide_(
+            {
+                **dim,
+                "name": "coordinates",
+                "text": "{wow.coords_text}",
+                "font": "mono",
+                "size": 24,
+                "pos": ["45%", "28%"],
+            }
+        ),
+        wide_({**text, "name": "level", "text": level, "size": 30, "pos": ["45%", "41%"]}),
+        wide_({**xp_bar, "name": "xp bar", "rect": ["45%", "53%", "24%", 16]}),
+        wide_({**rested_bar, "name": "rested bar", "rect": ["45%", "58%", "24%", 6]}),
+        wide_({**dim, "name": "xp detail", "text": xp_detail, "size": 22, "pos": ["45%", "63%"]}),
+        wide_(
+            {
+                **text,
+                "name": "gold",
+                "text": "{wow.gold_text}",
+                "size": 30,
+                "pos": ["45%", "75%"],
+                "color": WOW_GOLD,
+            }
+        ),
+        wide_(
+            {
+                **dim,
+                "name": "state",
+                "text": "{wow.player.state_text}",
+                "size": 22,
+                "pos": ["45%", "86%"],
+                "color": WOW_HOSTILE,
+            }
+        ),
+        wide_({**dim, "name": "party label", "text": "PARTY", "size": 22, "pos": ["72%", "5%"]}),
+        wide_(
+            {
+                **dim,
+                "name": "clock",
+                "text": "{time.now}",
+                "size": 22,
+                "pos": ["-1.5%", "5%"],
+                "anchor": "top-right",
+            }
+        ),
+        wide_({**party, "rect": ["72%", "13%", "26.5%", "50%"], "size": 26}),
+        wide_(
+            {
+                **text,
+                "name": "target",
+                "text": "{wow.target.text}",
+                "size": 24,
+                "pos": ["72%", "66%"],
+                "color": WOW_HOSTILE,
+            }
+        ),
+        wide_(
+            {
+                **dim,
+                "name": "session",
+                "text": "{wow.session.played_text} played   {wow.session.xp_per_hour:,.0f} XP/h",
+                "size": 21,
+                "pos": ["72%", "77%"],
+            }
+        ),
+        wide_(
+            {
+                **dim,
+                "name": "gear",
+                "text": "{wow.durability.pct:.0f}% durability   {wow.bags.free} bag slots free",
+                "size": 21,
+                "pos": ["72%", "86%"],
+            }
+        ),
+    ]
+
+    centred = {"anchor": "top-center", "align": "center"}
+    tall = [
+        tall_({**map_layer, "rect": ["4%", "1.5%", "92%", "40%"]}),
+        tall_(
+            {
+                **text,
+                **centred,
+                "name": "zone",
+                "text": "{wow.zone}",
+                "size": 40,
+                "pos": ["center", "43%"],
+                "color": WOW_GOLD,
+                "shadow": True,
+            }
+        ),
+        tall_(
+            {
+                **text,
+                **centred,
+                "name": "subzone",
+                "text": "{wow.subzone}",
+                "size": 26,
+                "pos": ["center", "46%"],
+            }
+        ),
+        tall_(
+            {
+                **dim,
+                **centred,
+                "name": "coordinates",
+                "text": "{wow.coords_text}",
+                "font": "mono",
+                "size": 22,
+                "pos": ["center", "48.3%"],
+            }
+        ),
+        tall_({**text, "name": "level", "text": level, "size": 28, "pos": ["6%", "52%"]}),
+        tall_({**xp_bar, "name": "xp bar", "rect": ["6%", "54.6%", "88%", 16]}),
+        tall_({**rested_bar, "name": "rested bar", "rect": ["6%", "55.8%", "88%", 6]}),
+        tall_({**dim, "name": "xp detail", "text": xp_detail, "size": 20, "pos": ["6%", "57%"]}),
+        tall_(
+            {
+                **text,
+                "name": "gold",
+                "text": "{wow.gold_text}",
+                "size": 28,
+                "pos": ["6%", "60.5%"],
+                "color": WOW_GOLD,
+            }
+        ),
+        tall_(
+            {
+                **dim,
+                "name": "state",
+                "text": "{wow.player.state_text}",
+                "size": 20,
+                "pos": ["-6%", "61%"],
+                "anchor": "top-right",
+                "color": WOW_HOSTILE,
+            }
+        ),
+        tall_({**dim, "name": "party label", "text": "PARTY", "size": 20, "pos": ["6%", "65.5%"]}),
+        tall_({**party, "rect": ["6%", "67.5%", "88%", "17%"], "size": 24}),
+        tall_(
+            {
+                **text,
+                "name": "target",
+                "text": "{wow.target.text}",
+                "size": 22,
+                "pos": ["6%", "86%"],
+                "color": WOW_HOSTILE,
+            }
+        ),
+        tall_(
+            {
+                **dim,
+                "name": "session",
+                "text": "{wow.session.played_text} played\n{wow.session.xp_per_hour:,.0f} XP/h",
+                "size": 20,
+                "pos": ["6%", "89%"],
+            }
+        ),
+        tall_(
+            {
+                **dim,
+                "name": "clock",
+                "text": "{time.now}",
+                "size": 22,
+                "pos": ["center", "-1.5%"],
+                "anchor": "bottom-center",
+            }
+        ),
+    ]
+
+    # Why the map is showing old news, on the map itself.
+    status = {
+        **text,
+        "name": "status",
+        "text": "{wow.status_text}",
+        "size": 26,
+        "align": "center",
+        "anchor": "bottom-center",
+        "shadow": True,
+        "color": WOW_GOLD,
+    }
+    seen = {
+        **dim,
+        "name": "last seen",
+        "text": "{wow.last_seen_text}",
+        "size": 20,
+        "align": "center",
+        "anchor": "bottom-center",
+    }
+    shared = [
+        wide_({**status, "pos": ["22%", "-15%"]}),
+        wide_({**seen, "pos": ["22%", "-8%"]}),
+        tall_({**status, "pos": ["center", "37%"]}),
+        tall_({**seen, "pos": ["center", "39.5%"]}),
+    ]
+
+    return {
+        "version": 1,
+        "name": "WoW Forever",
+        # The map glides its dots between readings; 15 fps keeps that smooth.
+        "fps": 15,
+        "background": WOW_INK,
+        "layers": [
+            {"type": "solid", "color": WOW_PANEL, "color2": WOW_INK},
+            *wide,
+            *tall,
+            *shared,
+        ],
+    }
+
+
+def _wow_orient(layer: dict[str, Any], orientation: str) -> dict[str, Any]:
+    """Tag a layer for one orientation; the portrait copy gets a distinct name."""
+    if orientation == "portrait":
+        name = f"{layer.get('name', layer['type'])} (tall)"
+        return {**layer, "name": name, "orientation": "portrait"}
+    return {**layer, "orientation": "landscape"}
+
+
+def _wow_status_lines(wide_pos: tuple[str, str], tall_pos: tuple[str, str]) -> list[dict]:
+    """Why the display is showing old news, and since when."""
+    status = {
+        "type": "text",
+        "font": "sans",
+        "name": "status",
+        "text": "{wow.status_text}",
+        "size": 26,
+        "align": "center",
+        "anchor": "bottom-center",
+        "shadow": True,
+        "color": WOW_GOLD,
+    }
+    seen = {
+        **status,
+        "name": "last seen",
+        "text": "{wow.last_seen_text}",
+        "size": 20,
+        "shadow": False,
+        "color": WOW_DIM,
+    }
+
+    def below(pos: tuple[str, str], step: float) -> list[str]:
+        x, y = pos
+        number = float(y.rstrip("%"))
+        return [x, f"{number + step:g}%"]
+
+    return [
+        _wow_orient({**status, "pos": list(wide_pos)}, "landscape"),
+        _wow_orient({**seen, "pos": below(wide_pos, 7)}, "landscape"),
+        _wow_orient({**status, "pos": list(tall_pos)}, "portrait"),
+        _wow_orient({**seen, "pos": below(tall_pos, 2.5)}, "portrait"),
+    ]
+
+
+def _wow_unit_frame() -> dict[str, Any]:
+    """World of Warcraft: Forever: your own unit frame, as big as the panel allows.
+
+    The portrait is the game's own, copied off the screen about once a second
+    (the class icon from the game files when the frame cannot be seen), with
+    health and power bars that ease like the real ones and leave a red slice
+    for damage just taken. Experience, zone, gold and target fill the rest.
+    """
+    text = {"type": "text", "font": "sans", "color": WOW_PARCHMENT}
+    dim = {**text, "color": WOW_DIM}
+    frame = {
+        "type": "wow_unit_frame",
+        "name": "unit frame",
+        "font": "sans",
+        "name_color": WOW_GOLD,
+        "ring_color": "#c9a343",
+        "panel_color": "#000000b4",
+        "glide": 0.45,
+    }
+    xp_bar = {
+        "type": "gauge",
+        "metric": "wow.xp.pct",
+        "color": "#a335ee",
+        "track_color": "#ffffff14",
+    }
+    rested_bar = {
+        "type": "gauge",
+        "metric": "wow.xp.rested_pct",
+        "color": WOW_RESTED,
+        "track_color": "#00000000",
+        "radius": 3,
+    }
+    level = "LEVEL {wow.player.level} {wow.player.class}"
+    xp_detail = "{wow.xp.text}   {wow.xp.pct:.1f}%   {wow.xp.rested_pct:.0f}% rested"
+
+    def wide(layer: dict[str, Any]) -> dict[str, Any]:
+        return _wow_orient(layer, "landscape")
+
+    def tall(layer: dict[str, Any]) -> dict[str, Any]:
+        return _wow_orient(layer, "portrait")
+
+    landscape = [
+        wide({**frame, "rect": ["1.5%", "4%", "56%", "78%"]}),
+        wide(
+            {
+                **text,
+                "name": "zone",
+                "text": "{wow.zone}",
+                "size": 40,
+                "pos": ["60%", "8%"],
+                "color": WOW_GOLD,
+                "shadow": True,
+            }
+        ),
+        wide(
+            {
+                **dim,
+                "name": "subzone",
+                "text": "{wow.location_text}",
+                "size": 24,
+                "pos": ["60%", "21%"],
+            }
+        ),
+        wide({**text, "name": "level", "text": level, "size": 28, "pos": ["60%", "36%"]}),
+        wide({**xp_bar, "name": "xp bar", "rect": ["60%", "48%", "38%", 16]}),
+        wide({**rested_bar, "name": "rested bar", "rect": ["60%", "53%", "38%", 6]}),
+        wide({**dim, "name": "xp detail", "text": xp_detail, "size": 20, "pos": ["60%", "58%"]}),
+        wide(
+            {
+                **text,
+                "name": "gold",
+                "text": "{wow.gold_text}",
+                "size": 28,
+                "pos": ["60%", "71%"],
+                "color": WOW_GOLD,
+            }
+        ),
+        wide(
+            {
+                **text,
+                "name": "target",
+                "text": "{wow.target.text}",
+                "size": 24,
+                "pos": ["60%", "84%"],
+                "color": WOW_HOSTILE,
+            }
+        ),
+        wide(
+            {
+                **dim,
+                "name": "clock",
+                "text": "{time.now}",
+                "size": 22,
+                "pos": ["-1.5%", "8%"],
+                "anchor": "top-right",
+            }
+        ),
+    ]
+    centred = {"anchor": "top-center", "align": "center"}
+    portrait = [
+        tall({**frame, "rect": ["3%", "3%", "94%", "15%"]}),
+        tall(
+            {
+                **text,
+                **centred,
+                "name": "zone",
+                "text": "{wow.zone}",
+                "size": 38,
+                "pos": ["center", "22%"],
+                "color": WOW_GOLD,
+                "shadow": True,
+            }
+        ),
+        tall(
+            {
+                **dim,
+                **centred,
+                "name": "subzone",
+                "text": "{wow.subzone}",
+                "size": 24,
+                "pos": ["center", "25%"],
+            }
+        ),
+        tall({**text, "name": "level", "text": level, "size": 26, "pos": ["6%", "32%"]}),
+        tall({**xp_bar, "name": "xp bar", "rect": ["6%", "35%", "88%", 16]}),
+        tall({**rested_bar, "name": "rested bar", "rect": ["6%", "36.2%", "88%", 6]}),
+        tall(
+            {
+                **dim,
+                "name": "xp detail",
+                "text": "{wow.xp.pct:.1f}% XP   {wow.xp.rested_pct:.0f}% rested",
+                "size": 20,
+                "pos": ["6%", "37.5%"],
+            }
+        ),
+        tall(
+            {
+                **text,
+                "name": "gold",
+                "text": "{wow.gold_text}",
+                "size": 28,
+                "pos": ["6%", "44%"],
+                "color": WOW_GOLD,
+            }
+        ),
+        tall(
+            {
+                **dim,
+                "name": "session",
+                "text": "{wow.session.played_text} played\n{wow.session.gold_text} this session",
+                "size": 20,
+                "pos": ["6%", "47.5%"],
+            }
+        ),
+        tall({**dim, "name": "party label", "text": "PARTY", "size": 20, "pos": ["6%", "62%"]}),
+        tall(
+            {
+                "type": "wow_party",
+                "name": "party",
+                "font": "sans",
+                "text_color": WOW_PARCHMENT,
+                "dim_color": WOW_DIM,
+                "rect": ["6%", "64%", "88%", "22%"],
+                "size": 24,
+            }
+        ),
+        tall(
+            {
+                **text,
+                "name": "target",
+                "text": "{wow.target.text}",
+                "size": 24,
+                "pos": ["6%", "55%"],
+                "color": WOW_HOSTILE,
+            }
+        ),
+        tall(
+            {
+                **dim,
+                "name": "clock",
+                "text": "{time.now}",
+                "size": 22,
+                "pos": ["center", "-1.5%"],
+                "anchor": "bottom-center",
+            }
+        ),
+    ]
+    return {
+        "version": 1,
+        "name": "WoW Unit Frame",
+        # Bars ease and the combat ring pulses; 15 fps keeps both smooth.
+        "fps": 15,
+        "background": WOW_INK,
+        "layers": [
+            {"type": "solid", "color": WOW_PANEL, "color2": WOW_INK},
+            *landscape,
+            *portrait,
+            *_wow_status_lines(("29%", "-8%"), ("center", "-6%")),
+        ],
+    }
+
+
+def _wow_party_map() -> dict[str, Any]:
+    """World of Warcraft: Forever: where your party is, on the whole panel.
+
+    The zone map fills the display with everyone's dot on it. Members in
+    another zone get an arrow on the map's edge pointing their way, with their
+    zone and distance, and the roster says where each one is. Positions a
+    member's own FitzLCD addon shared (when the game hides them) get a ring.
+    """
+    text = {"type": "text", "font": "sans", "color": WOW_PARCHMENT}
+    dim = {**text, "color": WOW_DIM}
+    map_layer = {
+        "type": "wow_map",
+        "name": "map",
+        "view": "party",
+        "zoom": 4.0,
+        "font": "sans",
+        "dot_size": 13,
+        "player_color": WOW_GOLD,
+        "name_color": WOW_PARCHMENT,
+        "backdrop_color": "#14110d",
+        "backdrop_dim": 0.15,
+        "grid_color": "#ffd10022",
+        "border_color": "#ffd10033",
+        "glide": 0.9,
+        "ping": 3.0,
+    }
+    scrim = {"type": "solid", "color": "#0c0a08d0", "color2": "#0c0a08a0", "radius": 16}
+    party = {
+        "type": "wow_party",
+        "name": "party",
+        "font": "sans",
+        "text_color": WOW_PARCHMENT,
+        "dim_color": WOW_DIM,
+    }
+
+    def wide(layer: dict[str, Any]) -> dict[str, Any]:
+        return _wow_orient(layer, "landscape")
+
+    def tall(layer: dict[str, Any]) -> dict[str, Any]:
+        return _wow_orient(layer, "portrait")
+
+    landscape = [
+        wide({**map_layer, "rect": ["0.6%", "2.5%", "98.8%", "95%"]}),
+        wide({**scrim, "name": "roster backdrop", "rect": ["71%", "6%", "27.5%", "70%"]}),
+        wide(
+            {
+                **text,
+                "name": "zone",
+                "text": "{wow.zone}",
+                "size": 30,
+                "pos": ["72.5%", "9%"],
+                "color": WOW_GOLD,
+                "shadow": True,
+            }
+        ),
+        wide({**party, "rect": ["72.5%", "21%", "24.5%", "52%"], "size": 24}),
+        wide(
+            {
+                **dim,
+                "name": "coordinates",
+                "text": "{wow.coords_text}",
+                "font": "mono",
+                "size": 20,
+                "pos": ["2%", "-6%"],
+                "anchor": "bottom-left",
+                "shadow": True,
+            }
+        ),
+    ]
+    portrait = [
+        tall({**map_layer, "rect": ["3%", "1.5%", "94%", "68%"]}),
+        tall(
+            {
+                **text,
+                "name": "zone",
+                "text": "{wow.zone}",
+                "size": 36,
+                "pos": ["6%", "71.5%"],
+                "color": WOW_GOLD,
+                "shadow": True,
+            }
+        ),
+        tall(
+            {
+                **dim,
+                "name": "coordinates",
+                "text": "{wow.coords_text}",
+                "font": "mono",
+                "size": 22,
+                "pos": ["-6%", "72%"],
+                "anchor": "top-right",
+            }
+        ),
+        tall({**party, "rect": ["6%", "75.5%", "88%", "20%"], "size": 26}),
+        tall(
+            {
+                **dim,
+                "name": "clock",
+                "text": "{time.now}",
+                "size": 22,
+                "pos": ["center", "-1.2%"],
+                "anchor": "bottom-center",
+            }
+        ),
+    ]
+    return {
+        "version": 1,
+        "name": "WoW Party Map",
+        "fps": 15,
+        "background": WOW_INK,
+        "layers": [
+            {"type": "solid", "color": WOW_PANEL, "color2": WOW_INK},
+            *landscape,
+            *portrait,
+            *_wow_status_lines(("36%", "-14%"), ("center", "62%")),
+        ],
+    }
+
+
 #: Seeded on first run, in the order they appear in the UI.
 DEFAULT_SCENES: dict[str, dict[str, Any]] = {
     "rig-stats": _rig_stats(),
@@ -1506,4 +2164,7 @@ DEFAULT_SCENES: dict[str, dict[str, Any]] = {
     "wallpaper": _wallpaper(),
     "cs2-hud": _cs2_hud(),
     "claude-usage": _claude_usage(),
+    "wow-forever": _wow_forever(),
+    "wow-unit-frame": _wow_unit_frame(),
+    "wow-party-map": _wow_party_map(),
 }

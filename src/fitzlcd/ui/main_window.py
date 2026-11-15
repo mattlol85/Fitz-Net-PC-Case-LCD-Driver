@@ -20,6 +20,7 @@ from PySide6.QtCore import QRect, QSize, Qt, QTimer, Signal
 from PySide6.QtGui import QColor, QIcon, QImage, QKeySequence, QPixmap, QShortcut
 from PySide6.QtWidgets import (
     QComboBox,
+    QFileDialog,
     QHBoxLayout,
     QInputDialog,
     QLabel,
@@ -40,6 +41,7 @@ from fitzlcd.engine import EngineStats, RenderEngine
 from fitzlcd.render.scene import Scene
 from fitzlcd.sources.cs2gsi import cs2_gsi_cfg_installed, find_cs2_cfg_dir, install_cs2_gsi_cfg
 from fitzlcd.sources.stats import StatsRegistry
+from fitzlcd.sources.wow import install as wow_install
 from fitzlcd.ui import icons, theme
 from fitzlcd.ui.customize import CustomizeView, card, section_label
 from fitzlcd.ui.preview import MAX_PREVIEW_HEIGHT, PreviewWidget
@@ -316,6 +318,7 @@ class MainWindow(QMainWindow):
 
     def open_settings(self) -> None:
         self._refresh_cs2_button()
+        self._refresh_wow_button()
         self.settings_dialog.show()
         self.settings_dialog.raise_()
         self.settings_dialog.activateWindow()
@@ -706,6 +709,90 @@ class MainWindow(QMainWindow):
         )
         with contextlib.suppress(Exception):  # noqa: BLE001 - opening Explorer is best-effort
             subprocess.Popen(["explorer", "/select,", str(staging)])  # noqa: S603, S607
+
+    def _refresh_wow_button(self) -> None:
+        """Reflect whether the FitzLCD addon is in World of Warcraft: Forever."""
+        try:
+            state = wow_install.addon_state(self.config)
+        except OSError as exc:  # an unreadable install folder must not break Settings
+            log.warning("could not check the WoW addon: %s", exc)
+            state = "missing_game"
+        if state == "installed":
+            self.wow_status.setText("Ready")
+            self.wow_status.setStyleSheet(theme.text_color(STATUS_COLORS["connected"]))
+            self.wow_btn.setText("Details")
+            self.wow_btn.setIcon(icons.icon("check", STATUS_COLORS["connected"]))
+            self.wow_btn.setToolTip("Your map and party appear while you play.")
+        elif state in ("not_installed", "outdated"):
+            update = state == "outdated"
+            self.wow_status.setText("Addon out of date" if update else "Not set up yet")
+            self.wow_status.setStyleSheet(theme.text_color(STATUS_COLORS["searching"]))
+            self.wow_btn.setText("Update" if update else "Set up")
+            self.wow_btn.setIcon(QIcon())
+            self.wow_btn.setToolTip("Install the small FitzLCD addon into the game.")
+        else:
+            self.wow_status.setText("Not found on this PC")
+            self.wow_status.setStyleSheet("")
+            self.wow_btn.setText("Find it…")
+            self.wow_btn.setIcon(QIcon())
+            self.wow_btn.setToolTip("Choose the World of Warcraft folder.")
+
+    def _on_wow_setup(self) -> None:
+        """Install or update the addon, or ask where the game is."""
+        title = "World of Warcraft: Forever"
+        try:
+            state = wow_install.addon_state(self.config)
+        except OSError:
+            state = "missing_game"
+        if state == "missing_game":
+            folder = QFileDialog.getExistingDirectory(
+                self, "Where is World of Warcraft installed?", self.config.wow_install_dir
+            )
+            if not folder:
+                return
+            self.config.wow_install_dir = folder
+            self.config.save()
+            if wow_install.locate(self.config) is None:
+                QMessageBox.warning(
+                    self,
+                    title,
+                    "That folder doesn't contain World of Warcraft: Forever.\n\n"
+                    'Choose the "World of Warcraft" folder that Battle.net installed, '
+                    "the one with _forever_ inside it.",
+                )
+                self._refresh_wow_button()
+                return
+            state = wow_install.addon_state(self.config)
+
+        if state == "installed":
+            found = wow_install.locate(self.config)
+            where = wow_install.addon_target(found[1]) if found else ""
+            QMessageBox.information(
+                self,
+                title,
+                "The FitzLCD addon is installed.\n\n"
+                f"{where}\n\n"
+                "If the display says it is waiting for the addon, type /reload in game. "
+                "The game must be in windowed or Windowed (Fullscreen) mode, and the "
+                "top-left corner of it visible. /fitzlcd off hides the strip.",
+            )
+            return
+
+        try:
+            target = wow_install.install_addon(self.config)
+        except OSError as exc:
+            QMessageBox.warning(self, title, f"Couldn't install the addon:\n{exc}")
+            return
+        self._refresh_wow_button()
+        QMessageBox.information(
+            self,
+            title,
+            "All set. In game, type /reload (or log in) and your map appears on the "
+            "display.\n\n"
+            "The addon draws a thin strip of coloured pixels in the game's top-left "
+            "corner. That is how it talks to FitzLCD, so leave that corner uncovered.\n\n"
+            f"Installed to:\n{target}",
+        )
 
     # ---------------------------------------------------------------- geometry
 

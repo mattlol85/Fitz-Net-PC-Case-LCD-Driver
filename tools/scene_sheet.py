@@ -25,6 +25,7 @@ from fitzlcd.render.encode import Transform  # noqa: E402
 from fitzlcd.render.scene import Scene  # noqa: E402
 from fitzlcd.scenes_builtin import DEFAULT_SCENES  # noqa: E402
 from fitzlcd.sources.stats import StatsRegistry  # noqa: E402
+from fitzlcd.sources.wow.demo import demo_metrics  # noqa: E402
 
 NATIVE = PanelCaps(1920, 462, Transform.ROT_270)
 MARGIN = 16
@@ -48,6 +49,7 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--rotations", default="0,90,180,270")
     ap.add_argument("--scale", type=float, default=0.5)
     ap.add_argument("--scene", help="only this scene")
+    ap.add_argument("--wow-map-art", help="a map PNG to preview the WoW scene with")
     ap.add_argument(
         "--columns",
         type=int,
@@ -64,6 +66,11 @@ def main(argv: list[str] | None = None) -> int:
     metrics.setdefault("cpu.load", 37.0)
     metrics["net.down"] = max(metrics.get("net.down") or 0, 4.2)
     metrics["net.up"] = max(metrics.get("net.up") or 0, 1.1)
+    # The WoW provider is not in with_defaults(); show a believable party instead.
+    for key, value in demo_metrics().items():
+        metrics.setdefault(key, value)
+    if args.wow_map_art:
+        metrics["wow.map.image"] = args.wow_map_art
 
     names = [args.scene] if args.scene else list(DEFAULT_SCENES)
     tiles: dict[tuple[str, int], Image.Image] = {}
