@@ -22,7 +22,11 @@ ADDON = Path(__file__).parents[1] / "src" / "fitzlcd" / "sources" / "wow" / "add
 #: A minimal game: frames that remember scripts and texture colours, and unit
 #: functions answering from the ``world`` table that tests fill in.
 STUBS = r"""
-SECRET = setmetatable({}, { __tostring = function() return "<secret>" end })
+-- A secret the addon cannot read. Secret(n) still draws as n in a StatusBar, the
+-- way the game renders values it hides; the bare SECRET cannot be drawn at all.
+local secret_mt = { __tostring = function() return "<secret>" end }
+function Secret(n) return setmetatable({ hidden = n }, secret_mt) end
+SECRET = Secret(nil)
 frames, printed, clock = {}, {}, 100
 
 local function noop_meta(t)
@@ -30,7 +34,16 @@ local function noop_meta(t)
 end
 
 function CreateFrame(kind, name, parent)
-  local f = noop_meta({ scripts = {}, events = {}, textures = {} })
+  local f = noop_meta({ kind = kind, scripts = {}, events = {}, textures = {}, shown = true })
+  function f:SetShown(on) self.shown = on end
+  function f:SetMinMaxValues(lo, hi) self.max = hi end
+  function f:SetValue(v)
+    if issecretvalue(v) then
+      if v.hidden == nil then error("cannot draw this secret") end
+      v = v.hidden
+    end
+    self.value = v
+  end
   function f:SetScript(n, fn) self.scripts[n] = fn end
   function f:RegisterEvent(e) self.events[e] = true end
   function f:CreateTexture()
@@ -47,7 +60,7 @@ UIParent = {}
 function GetPhysicalScreenSize() return 2560, 1440 end
 function GetTime() return clock end
 function print(s) printed[#printed + 1] = s end
-function issecretvalue(v) return v == SECRET end
+function issecretvalue(v) return getmetatable(v) == secret_mt end
 SlashCmdList = {}
 
 world = { units = {}, info = {} }
@@ -172,10 +185,21 @@ class Game:
 
     def screenshot(self) -> Image.Image:
         strip = self.ns.Strip.frame
-        textures = list(strip.textures.values())
-        assert len(textures) == p.CELLS
+        textures = list(strip.textures.values())[: p.CELLS]
         levels = [tuple(round(c * 255 / 17) for c in t.rgb.values()) for t in textures]
-        return p.render_strip(levels, pitch=3)
+        return p.render_strip(levels, pitch=3, gauges=self.gauges())
+
+    def gauges(self) -> list[float | None]:
+        """What each gauge StatusBar would draw: its fill, or None while hidden."""
+        bars = [f for f in self.lua.globals().frames.values() if f.kind == "StatusBar"]
+        assert len(bars) == p.GAUGES
+        fills: list[float | None] = []
+        for bar in bars:
+            if not bar.shown or bar.value is None or not bar.max:
+                fills.append(None)
+            else:
+                fills.append(bar.value / bar.max)
+        return fills
 
     def frame(self) -> p.Frame:
         return p.decode_image(self.screenshot())
@@ -306,6 +330,30 @@ def test_secret_absolute_health_is_unknown_not_zero(game):
     player = game.frame().player
     assert player.hp == p.UNKNOWN32 and player.hp_max == 400
     assert player.power_type == p.UNKNOWN  # the stub reports none
+    assert not game.printed, game.printed
+
+
+def test_secret_health_still_draws_as_a_gauge(game):
+    """Forever hides current health even out of combat; a StatusBar still shows it."""
+    secret = game.lua.globals().Secret
+    game.unit("player", map=1429, hp=secret(300), hpmax=400)
+    game.tick()
+    frame = game.frame()
+    assert frame.player.hp == p.UNKNOWN32  # still never read as a number
+    assert frame.player.flags & p.P_HP_GAUGE and frame.player.flags & p.P_POWER_GAUGE
+    assert frame.gauges[0] == pytest.approx(0.75, abs=0.01)
+    assert frame.gauges[1] == pytest.approx(0.5, abs=0.01)
+    assert not game.printed, game.printed
+
+
+def test_an_undrawable_value_hides_its_gauge_and_clears_the_flag(game):
+    game.unit("player", map=1429, hp=game.lua.globals().SECRET, hpmax=400)
+    game.tick()
+    frame = game.frame()
+    assert not frame.player.flags & p.P_HP_GAUGE
+    assert frame.gauges[0] is None
+    assert game.gauges()[0] is None  # the bar itself is hidden, not left stale
+    assert frame.player.flags & p.P_POWER_GAUGE  # power was fine
     assert not game.printed, game.printed
 
 

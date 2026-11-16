@@ -190,3 +190,50 @@ class TestRecords:
 
     def test_encode_strips_newlines(self):
         assert p.parse_record(p.encode_record({"a": "x\ny"})) == {"a": "x y"}
+
+
+class TestGauges:
+    """Health/power bars drawn under the strip for values the game keeps secret."""
+
+    GAUGED = p.P_HAS_POSITION | p.P_HP_GAUGE | p.P_POWER_GAUGE
+
+    def _shot(self, gauges, flags=GAUGED, pitch=3, pad=(0, 0)) -> Image.Image:
+        data = p.pack_frame(1, _player(flags=flags, health=p.UNKNOWN))
+        strip = p.render_strip(p.frame_levels(data), pitch, gauges=gauges)
+        canvas = Image.new("RGB", (strip.width + 120, strip.height + 20), (40, 60, 30))
+        canvas.paste(strip, pad)
+        return canvas
+
+    @pytest.mark.parametrize("pitch", [3, 4, 6])
+    @pytest.mark.parametrize("fill", [0.0, 0.25, 0.731, 1.0])
+    def test_fill_is_measured(self, fill, pitch):
+        frame = p.decode_image(self._shot([fill, 1 - fill], pitch=pitch, pad=(5, 3)))
+        assert frame.gauges[0] == pytest.approx(fill, abs=0.01)
+        assert frame.gauges[1] == pytest.approx(1 - fill, abs=0.01)
+
+    def test_without_the_flag_a_gauge_is_ignored(self):
+        frame = p.decode_image(self._shot([0.5, 0.5], flags=p.P_HP_GAUGE))
+        assert frame.gauges[0] == pytest.approx(0.5, abs=0.01)
+        assert frame.gauges[1] is None
+
+    def test_an_old_addon_draws_no_gauges(self):
+        """Game scenery under the strip is never read as a bar."""
+        frame = p.decode_image(self._shot([None, None]))
+        assert frame.gauges == (None, None)
+
+    def test_a_cut_off_capture_reads_no_gauge(self):
+        image = self._shot([0.5, 0.5])
+        frame = p.decode_image(image.crop((0, 0, image.width, p.ROWS * 3)))
+        assert frame.gauges == (None, None)
+
+    def test_a_bar_that_does_not_fill_from_the_left_is_scenery(self):
+        image = self._shot([1.0, 1.0])
+        y = p.ROWS * 3 + 1
+        image.paste((p.GAUGE_TRACK,) * 3, (0, y - 1, 40, y + 2))  # dark start, bright end
+        assert p.decode_image(image).gauges[0] is None
+
+    def test_coloured_pixels_are_not_a_gauge(self):
+        image = self._shot([0.5, 0.5])
+        y = (p.ROWS + 1) * 3 + 1
+        image.paste((200, 40, 40), (60, y - 1, 64, y + 2))  # something red over the bar
+        assert p.decode_image(image).gauges[1] is None

@@ -105,6 +105,9 @@ local function gatherPlayer()
   p.power = percent(pw, pwMax)
   p.hp, p.hpMax = amount(hp), amount(hpMax)
   p.pw, p.pwMax = amount(pw), amount(pwMax)
+  -- Secret values still draw: the app measures these bars when hp/pw are unknown.
+  if Strip:SetGauge(1, hp, hpMax) then p.flags = p.flags + P.P_HP_GAUGE end
+  if Strip:SetGauge(2, pw, pwMax) then p.flags = p.flags + P.P_POWER_GAUGE end
   local powerType = plain((UnitPowerType("player")))
   p.powerType = type(powerType) == "number" and powerType >= 0 and powerType or P.UNKNOWN
   return p

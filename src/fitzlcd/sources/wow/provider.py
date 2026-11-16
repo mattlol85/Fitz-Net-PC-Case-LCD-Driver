@@ -40,7 +40,7 @@ import math
 import threading
 import time
 from collections.abc import Callable
-from dataclasses import asdict
+from dataclasses import asdict, replace
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -180,6 +180,36 @@ def format_duration(seconds: float) -> str:
     return f"{hours // 24}d {hours % 24}h"
 
 
+def _from_gauge(fill: float | None, top: int) -> tuple[int, int] | None:
+    """(percent, absolute) from a gauge's fill, or ``None`` without one."""
+    if fill is None:
+        return None
+    fill = min(1.0, max(0.0, fill))
+    absolute = round(fill * top) if top != p.UNKNOWN32 else p.UNKNOWN32
+    return round(fill * 100), absolute
+
+
+def with_gauges(player: p.PlayerState, gauges: tuple[float | None, ...]) -> p.PlayerState:
+    """Fill in health/power the addon could only draw (secret values) from the gauges.
+
+    A value the addon read directly always wins; a gauge only replaces an unknown.
+    """
+    changes: dict[str, int] = {}
+    pairs = (
+        ("health", "hp", "hp_max", gauges[0] if gauges else None),
+        ("power", "pw", "pw_max", gauges[1] if len(gauges) > 1 else None),
+    )
+    for pct_key, abs_key, max_key, fill in pairs:
+        read = _from_gauge(fill, getattr(player, max_key))
+        if read is None:
+            continue
+        if getattr(player, pct_key) == p.UNKNOWN:
+            changes[pct_key] = read[0]
+        if getattr(player, abs_key) == p.UNKNOWN32:
+            changes[abs_key] = read[1]
+    return replace(player, **changes) if changes else player
+
+
 class WowProvider(MetricProvider):
     name = "wow"
 
@@ -282,7 +312,7 @@ class WowProvider(MetricProvider):
     def _ingest(self, frame: p.Frame) -> None:
         self._failures = 0
         self._last_good = self._clock()
-        self._player = frame.player
+        self._player = with_gauges(frame.player, frame.gauges)
         self._party = frame.party
         record = self._assembler.feed(frame.chunk)
         if record is not None:

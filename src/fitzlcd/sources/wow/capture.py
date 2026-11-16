@@ -23,7 +23,7 @@ from typing import Protocol
 
 from PIL import Image
 
-from fitzlcd.sources.wow.protocol import COLUMNS, ROWS
+from fitzlcd.sources.wow.protocol import COLUMNS, GAUGES, ROWS
 
 log = logging.getLogger(__name__)
 
@@ -34,7 +34,7 @@ _EXE = re.compile(r"^wow[a-z0-9_]*\.exe$", re.IGNORECASE)
 
 #: Big enough for an 8-pixel cell pitch plus a small border.
 CAPTURE_WIDTH = COLUMNS * 8 + 16
-CAPTURE_HEIGHT = ROWS * 8 + 16
+CAPTURE_HEIGHT = (ROWS + GAUGES) * 8 + 16
 
 _RESCAN_SECONDS = 2.0
 
@@ -135,10 +135,13 @@ def _pid_alive(pid: int) -> bool:
 
 
 def _rank(name: str, exe: str) -> int:
-    """Lower is better: Forever's own folder, then any other WoW client."""
-    if "_forever_" in (part.lower() for part in PureWindowsPath(exe).parts):
-        return 0
-    return 1 + _preference(name)
+    """Lower is better: Forever's own folder, then any other WoW client.
+
+    Within a folder the game exe beats helpers like ``Utils\\WowVoiceProxy.exe``,
+    which match the name pattern but have no window to grab.
+    """
+    forever = "_forever_" in (part.lower() for part in PureWindowsPath(exe).parts)
+    return (0 if forever else len(_PREFERRED) + 1) + _preference(name)
 
 
 def _find_game_pid() -> int | None:

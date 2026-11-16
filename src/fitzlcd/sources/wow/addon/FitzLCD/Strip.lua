@@ -33,6 +33,46 @@ for i = 0, P.CELLS - 1 do
   cells[i + 1] = tex
 end
 
+-- Gauges: one row per bar under the cells (health, then power). The game hides
+-- current health and power from addons (secret values), but a StatusBar still
+-- draws them, so the app measures how far the white fill reaches across a grey
+-- track. Only set when the addon reports P_GAUGES; otherwise they are hidden.
+local GAUGE_TRACK = P.GAUGE_TRACK / 255
+local gauges = {}
+for i = 1, P.GAUGES do
+  local track = frame:CreateTexture(nil, "ARTWORK")
+  track:SetSize(P.COLUMNS * CELL_PX, CELL_PX)
+  track:SetPoint("TOPLEFT", frame, "TOPLEFT", 0, -(P.ROWS + i - 1) * CELL_PX)
+  track:SetColorTexture(GAUGE_TRACK, GAUGE_TRACK, GAUGE_TRACK, 1)
+  local bar = CreateFrame("StatusBar", nil, frame)
+  bar:SetAllPoints(track)
+  bar:SetStatusBarTexture("Interface\\Buttons\\WHITE8X8")
+  bar:SetStatusBarColor(1, 1, 1, 1)
+  bar:SetMinMaxValues(0, 1)
+  bar:SetValue(0)
+  gauges[i] = { track = track, bar = bar }
+end
+
+local function showGauge(g, on)
+  g.track:SetShown(on)
+  g.bar:SetShown(on)
+end
+
+-- Fill gauge ``i`` with ``value`` out of ``top``; either may be a secret.
+-- Returns whether the bar took the value, so the caller can flag it.
+function Strip:SetGauge(i, value, top)
+  local g = gauges[i]
+  if not g then
+    return false
+  end
+  local ok = value ~= nil
+    and top ~= nil
+    and pcall(g.bar.SetMinMaxValues, g.bar, 0, top)
+    and pcall(g.bar.SetValue, g.bar, value)
+  showGauge(g, ok and true or false)
+  return ok and true or false
+end
+
 -- One UI unit = one physical pixel, whatever the UI scale is.
 function Strip:FitToPixels()
   local _, height = GetPhysicalScreenSize()

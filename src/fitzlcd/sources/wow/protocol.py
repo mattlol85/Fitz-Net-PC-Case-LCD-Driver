@@ -83,6 +83,14 @@ P_AFK = 1 << 6
 P_HAS_FACING = 1 << 7
 P_IN_GROUP = 1 << 8
 P_IN_RAID = 1 << 9
+#: The addon is drawing health/power gauges under the strip (see :func:`read_gauges`).
+P_HP_GAUGE = 1 << 10
+P_POWER_GAUGE = 1 << 11
+
+#: Gauge rows under the cells, one cell pitch tall: health, then power. A white
+#: StatusBar fill over a grey track; the game draws secret values it won't tell.
+GAUGES = 2
+GAUGE_TRACK = 85
 
 # Party member flags.
 M_PRESENT = 1 << 0
@@ -180,6 +188,8 @@ class Frame:
     player: PlayerState
     party: tuple[MemberState, ...]
     chunk: SlowChunk | None = None
+    #: How full each gauge row is (0..1), or ``None`` where none could be read.
+    gauges: tuple[float | None, ...] = (None,) * GAUGES
 
 
 # ------------------------------------------------------------------ encoding
@@ -249,13 +259,28 @@ def frame_levels(data: bytes) -> list[tuple[int, int, int]]:
     return [SENTINEL_A, SENTINEL_B, *calibration, *cells]  # type: ignore[list-item]
 
 
-def render_strip(levels: Sequence[tuple[int, int, int]], pitch: int = 3) -> Image.Image:
-    """Draw cells the way the addon does: each a ``pitch``-pixel square."""
-    image = Image.new("RGB", (COLUMNS * pitch, ROWS * pitch))
+def render_strip(
+    levels: Sequence[tuple[int, int, int]],
+    pitch: int = 3,
+    gauges: Sequence[float | None] = (),
+) -> Image.Image:
+    """Draw cells the way the addon does: each a ``pitch``-pixel square.
+
+    ``gauges`` adds the rows under the cells (``None`` leaves a row black).
+    """
+    rows = ROWS + (GAUGES if gauges else 0)
+    image = Image.new("RGB", (COLUMNS * pitch, rows * pitch))
     for i, (r, g, b) in enumerate(levels):
         col, row = i % COLUMNS, i // COLUMNS
         box = (col * pitch, row * pitch, (col + 1) * pitch, (row + 1) * pitch)
         image.paste((r * LEVEL_STEP, g * LEVEL_STEP, b * LEVEL_STEP), box)
+    width = COLUMNS * pitch
+    for i, fill in enumerate(gauges):
+        if fill is None:
+            continue
+        top = (ROWS + i) * pitch
+        image.paste((GAUGE_TRACK,) * 3, (0, top, width, top + pitch))
+        image.paste((255, 255, 255), (0, top, round(width * fill), top + pitch))
     return image
 
 
@@ -340,7 +365,51 @@ def _level_table(samples: Sequence[int]) -> list[int]:
 def read_cells(image: Image.Image) -> list[tuple[int, int, int]]:
     """Every cell's levels, read off a screenshot and corrected by calibration."""
     rgb = image if image.mode == "RGB" else image.convert("RGB")
+    return _read_cells(rgb, locate(rgb))
+
+
+#: Neither a pure track nor a pure fill: the bar's anti-aliased end. Allow a couple.
+_GAUGE_EDGE_PIXELS = 2
+
+
+def _read_gauge(rgb: Image.Image, geometry: StripGeometry, index: int) -> float | None:
+    """How far gauge row ``index`` is filled, or ``None`` if it isn't a gauge."""
+    width, height = rgb.size
+    y = int(geometry.y + (ROWS + index + 0.5) * geometry.pitch_y)
+    left = round(geometry.x)
+    right = round(geometry.x + COLUMNS * geometry.pitch_x)
+    if y >= height or right > width or right - left < COLUMNS:
+        return None
+    px = rgb.load()
+    span = 255 - GAUGE_TRACK
+    fills: list[float] = []
+    edges = 0
+    for x in range(left, right):
+        r, g, b = px[x, y][:3]
+        if max(r, g, b) - min(r, g, b) > 32:
+            return None  # colour: the game world, not our grey/white bar
+        mean = (r + g + b) / 3
+        if mean < GAUGE_TRACK / 2:
+            return None  # black or dark: no gauge drawn here
+        fill = min(1.0, max(0.0, (mean - GAUGE_TRACK) / span))
+        if 0.2 < fill < 0.8:
+            edges += 1
+            if edges > _GAUGE_EDGE_PIXELS:
+                return None
+        if fills and fill > fills[-1] + 0.2:
+            return None  # a bar fills from the left; anything else is scenery
+        fills.append(fill)
+    return sum(fills) / len(fills)
+
+
+def read_gauges(image: Image.Image) -> tuple[float | None, ...]:
+    """Each gauge row's fill (0..1), ``None`` where there is no readable gauge."""
+    rgb = image if image.mode == "RGB" else image.convert("RGB")
     geometry = locate(rgb)
+    return tuple(_read_gauge(rgb, geometry, i) for i in range(GAUGES))
+
+
+def _read_cells(rgb: Image.Image, geometry: StripGeometry) -> list[tuple[int, int, int]]:
     px = rgb.load()
     raw = [px[geometry.centre(i)] for i in range(CELLS)]
     samples = [channel for cell in CALIBRATION_CELLS for channel in raw[cell]]
@@ -375,10 +444,16 @@ def unpack_frame(data: bytes) -> Frame:
 
 def decode_image(image: Image.Image) -> Frame:
     """Screenshot of the strip -> :class:`Frame`. Raises :class:`StripError`."""
-    cells = read_cells(image)
+    rgb = image if image.mode == "RGB" else image.convert("RGB")
+    geometry = locate(rgb)
+    cells = _read_cells(rgb, geometry)
     nibbles = [n for cell in cells[DATA_CELL0:] for n in cell]
     data = bytes((nibbles[i] << 4) | nibbles[i + 1] for i in range(0, len(nibbles), 2))
-    return unpack_frame(data)
+    frame = unpack_frame(data)
+    flags = frame.player.flags
+    wanted = (flags & P_HP_GAUGE, flags & P_POWER_GAUGE)
+    gauges = tuple(_read_gauge(rgb, geometry, i) if want else None for i, want in enumerate(wanted))
+    return Frame(frame.seq, frame.player, frame.party, frame.chunk, gauges)
 
 
 # ----------------------------------------------------------------- slow lane

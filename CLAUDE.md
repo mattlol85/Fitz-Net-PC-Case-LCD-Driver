@@ -125,7 +125,12 @@ the PlayerFrame portrait's screen rect (`pr`) and the provider copies that squar
 off the screen about once a second, tied to the character's name so an alt never
 shows the wrong face. `Share.lua` broadcasts each member's *own* readable position
 over addon messages as a fallback (`M_SHARED`); it can never reveal what the
-sender's game hides. Never read game memory or send input.
+sender's game hides. Forever keeps current HP/power secret even out of combat,
+but a StatusBar still draws secrets, so `Strip.lua` paints two gauge rows under
+the cells (`P_HP_GAUGE`/`P_POWER_GAUGE`) and `protocol.read_gauges` measures the
+fill; a value read directly always wins over a gauge. Forever's
+`Utils\WowVoiceProxy.exe` matches the exe pattern too, so `capture._rank` must
+keep the windowed `Wow.exe` ahead of it. Never read game memory or send input.
 
 **Orientation is one number, resolved in two places.**
 `PanelCaps.rotated(degrees)` swaps the frame geometry for scene composition,
