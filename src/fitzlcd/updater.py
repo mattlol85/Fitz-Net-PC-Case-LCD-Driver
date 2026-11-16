@@ -22,9 +22,9 @@ import os
 import re
 import subprocess
 import sys
-import time
 import urllib.error
 import urllib.request
+import uuid
 import zipfile
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -179,7 +179,7 @@ def _check(current: str, get: Fetch, fresh: bool) -> Release | None:
     url = LATEST_URL
     if fresh:
         # A unique query string is a separate cache entry at GitHub's edge.
-        url = f"{LATEST_URL}?t={time.time_ns()}"
+        url = f"{LATEST_URL}?t={uuid.uuid4().hex}"
         headers["Cache-Control"] = "no-cache"
     try:
         status, body = get(url, headers)
