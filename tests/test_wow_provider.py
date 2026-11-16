@@ -347,19 +347,41 @@ class TestMapArt:
             provider.close()
 
 
-@pytest.mark.parametrize(
-    ("name", "exe", "rank"),
-    [
-        ("Wow.exe", r"F:\Blizzard Games\World of Warcraft\_forever_\Wow.exe", 0),
-        ("Wow.exe", r"F:\Blizzard Games\World of Warcraft\_retail_\Wow.exe", 1),
-        ("WowClassic.exe", "", 3),
-        ("Wow.exe", "", 1),
-    ],
-)
-def test_forever_process_is_preferred(name, exe, rank):
+def test_forever_process_is_preferred():
     from fitzlcd.sources.wow.capture import _rank
 
-    assert _rank(name, exe) == rank
+    root = r"F:\Blizzard Games\World of Warcraft"
+    best_to_worst = [
+        ("Wow.exe", rf"{root}\_forever_\Wow.exe"),
+        ("WowVoiceProxy.exe", rf"{root}\_forever_\Utils\WowVoiceProxy.exe"),
+        ("Wow.exe", rf"{root}\_retail_\Wow.exe"),
+        ("WowClassic.exe", ""),
+        ("WowVoiceProxy.exe", rf"{root}\_retail_\Utils\WowVoiceProxy.exe"),
+    ]
+    ranks = [_rank(name, exe) for name, exe in best_to_worst]
+    assert ranks == sorted(ranks)
+    assert len(set(ranks)) == len(ranks)
+
+
+def test_voice_proxy_with_a_lower_pid_does_not_win(monkeypatch):
+    """Forever's Utils\\WowVoiceProxy.exe has no window; picking it reads as 'not running'."""
+    import psutil
+
+    from fitzlcd.sources.wow.capture import _find_game_pid
+
+    root = r"F:\Blizzard Games\World of Warcraft\_forever_"
+
+    class Proc:
+        def __init__(self, pid, name, exe):
+            self.pid = pid
+            self.info = {"name": name, "exe": exe}
+
+    procs = [
+        Proc(49176, "WowVoiceProxy.exe", rf"{root}\Utils\WowVoiceProxy.exe"),
+        Proc(84708, "Wow.exe", rf"{root}\Wow.exe"),
+    ]
+    monkeypatch.setattr(psutil, "process_iter", lambda attrs=None: iter(procs))
+    assert _find_game_pid() == 84708
 
 
 # ------------------------------------------------------------ unit frame data
@@ -603,3 +625,56 @@ class TestPartyWhereabouts:
         grabber.push(Grab("ok", shot(party=(shared,))))
         provider.step()
         assert provider.read()["wow.party"][0]["shared"] is True
+
+
+# ------------------------------------------------------------ secret gauges
+
+
+def _secret_player(**overrides) -> p.PlayerState:
+    values = {
+        "flags": 0,
+        "map_id": 1437,
+        "x": 0,
+        "y": 0,
+        "facing": 0,
+        "level": 28,
+        "class_id": 8,
+        "health": p.UNKNOWN,
+        "power": p.UNKNOWN,
+        "power_type": 0,
+        "hp": p.UNKNOWN32,
+        "hp_max": 1002,
+        "pw": p.UNKNOWN32,
+        "pw_max": 2301,
+    }
+    values.update(overrides)
+    return p.PlayerState(**values)
+
+
+class TestGaugeFallback:
+    def test_gauges_fill_in_secret_health_and_power(self):
+        from fitzlcd.sources.wow.provider import with_gauges
+
+        player = with_gauges(_secret_player(), (0.5, 0.25))
+        assert (player.health, player.hp) == (50, 501)
+        assert (player.power, player.pw) == (25, 575)
+
+    def test_a_value_read_directly_beats_the_gauge(self):
+        from fitzlcd.sources.wow.provider import with_gauges
+
+        player = with_gauges(_secret_player(health=90, hp=900), (0.5, None))
+        assert (player.health, player.hp) == (90, 900)
+        assert player.pw == p.UNKNOWN32  # no gauge: still unknown, never zero
+
+    def test_unknown_max_gives_a_percent_but_no_absolute(self):
+        from fitzlcd.sources.wow.provider import with_gauges
+
+        player = with_gauges(_secret_player(hp_max=p.UNKNOWN32), (0.4, None))
+        assert player.health == 40 and player.hp == p.UNKNOWN32
+
+    def test_no_gauges_leaves_the_player_alone(self):
+        from fitzlcd.sources.wow.provider import with_gauges
+
+        player = _secret_player()
+        assert with_gauges(player, ()) is player
+        assert with_gauges(player, (None, None)) is player

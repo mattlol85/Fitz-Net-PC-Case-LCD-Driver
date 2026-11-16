@@ -2,7 +2,7 @@
 ## Title: FitzLCD
 ## Notes: Shows your map, party and session on the FitzLCD case display, through a tiny strip of pixels in the top-left corner.
 ## Author: FitzLCD
-## Version: 2.0.0
+## Version: 2.1.0
 
 Protocol.lua
 Strip.lua

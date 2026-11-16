@@ -30,6 +30,12 @@ P.P_AFK = 64
 P.P_HAS_FACING = 128
 P.P_IN_GROUP = 256
 P.P_IN_RAID = 512
+P.P_HP_GAUGE = 1024
+P.P_POWER_GAUGE = 2048
+
+-- Gauge rows drawn under the cells (Strip.lua): health, then power.
+P.GAUGES = 2
+P.GAUGE_TRACK = 85
 
 -- Party member flags.
 P.M_PRESENT = 1
