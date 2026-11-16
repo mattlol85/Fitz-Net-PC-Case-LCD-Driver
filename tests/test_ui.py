@@ -608,9 +608,44 @@ class TestUpdateButton:
             size=1,
             page="https://example.invalid",
         )
-        controller._on_checked((release, True))
+        controller._on_checked((release, True, None))
 
         assert controller.available is release
         assert controller.button.text() == "Update to v9.9.9"
         # The check is stamped so a restart doesn't immediately re-check.
         assert window.config.update_last_check > 0
+
+    def test_a_failed_click_says_so_and_leaves_the_schedule_alone(
+        self, window, qt_app, monkeypatch
+    ):
+        from PySide6.QtWidgets import QMessageBox
+
+        from fitzlcd.ui.updates import UpdateController
+
+        shown = []
+        monkeypatch.setattr(QMessageBox, "warning", lambda *a: shown.append(a[1:]))
+        monkeypatch.setattr(QMessageBox, "information", lambda *a: shown.append(("info",)))
+        controller = UpdateController(window.update_btn, window.config, parent=window)
+        window.config.update_last_check = 0.0
+
+        controller._on_checked((None, False, "GitHub answered HTTP 403"))
+
+        assert shown and shown[0][0] == "Couldn't check for updates"
+        assert "HTTP 403" in shown[0][1]
+        assert window.config.update_last_check == 0.0  # not stamped: it never really checked
+        assert controller.button.text() == "Check for updates"
+
+    def test_a_click_during_a_background_check_is_not_dropped(self, window, qt_app, monkeypatch):
+        from fitzlcd.ui.updates import UpdateController
+
+        controller = UpdateController(window.update_btn, window.config, parent=window)
+        started = []
+        controller._busy = True  # a background check is running
+        controller.check_async(announce=False)  # the user clicks
+        assert controller._click_waiting
+
+        monkeypatch.setattr(
+            controller, "check_async", lambda announce=True: started.append(announce)
+        )
+        controller._on_checked((None, True, None))  # the background check lands
+        assert started == [False]  # ...and the click's own fresh check runs

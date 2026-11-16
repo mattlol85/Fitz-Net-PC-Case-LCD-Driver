@@ -22,6 +22,7 @@ import os
 import re
 import subprocess
 import sys
+import time
 import urllib.error
 import urllib.request
 import zipfile
@@ -136,7 +137,8 @@ def _http_get(url: str, headers: dict) -> tuple[int, str]:
         return exc.code, exc.read().decode("utf-8", "replace")
 
 
-def _pick_asset(assets: list[dict]) -> dict | None:
+def _pick_asset(assets: list) -> dict | None:
+    assets = [a for a in assets if isinstance(a, dict)]
     for asset in assets:
         if _ASSET_RE.match(str(asset.get("name", ""))):
             return asset
@@ -144,39 +146,73 @@ def _pick_asset(assets: list[dict]) -> dict | None:
     return zips[0] if len(zips) == 1 else None
 
 
-def check(current: str = __version__, fetch: Fetch | None = None) -> Release | None:
+def check(
+    current: str = __version__,
+    fetch: Fetch | None = None,
+    *,
+    fresh: bool = False,
+    strict: bool = False,
+) -> Release | None:
     """Return the newer release, or ``None`` if we're current or can't tell.
 
-    Never raises: a failed check must not disturb a running app.
+    ``fresh`` skips GitHub's edge cache, which serves ``releases/latest`` for up
+    to a minute after a publish: a click right after a release would otherwise
+    hear "you're current". ``strict`` raises :class:`UpdateError` when the check
+    itself fails, so a click can say so instead of claiming there's no update.
+    Without it this never raises: a failed background check must not disturb
+    a running app.
     """
-    get = fetch or _http_get
+    try:
+        return _check(current, fetch or _http_get, fresh)
+    except UpdateError as exc:
+        log.info("update check failed: %s", exc)
+        if strict:
+            raise
+        return None
+
+
+def _check(current: str, get: Fetch, fresh: bool) -> Release | None:
     headers = {
         "Accept": "application/vnd.github+json",
         "User-Agent": f"FitzLCD/{current}",
     }
+    url = LATEST_URL
+    if fresh:
+        # A unique query string is a separate cache entry at GitHub's edge.
+        url = f"{LATEST_URL}?t={time.time_ns()}"
+        headers["Cache-Control"] = "no-cache"
     try:
-        status, body = get(LATEST_URL, headers)
-        if status != 200:
-            log.info("update check: HTTP %s", status)
-            return None
+        status, body = get(url, headers)
+    except Exception as exc:  # noqa: BLE001 - any transport failure is "couldn't check"
+        raise UpdateError(f"could not reach GitHub ({exc})") from exc
+    if status != 200:
+        raise UpdateError(f"GitHub answered HTTP {status}")
+    try:
         data = json.loads(body)
-        version = str(data.get("tag_name", "")).lstrip("vV")
-        if not version or not is_newer(version, current):
-            return None
-        asset = _pick_asset(data.get("assets") or [])
-        if not asset or not asset.get("browser_download_url"):
-            log.info("update check: release %s has no Windows zip", version)
-            return None
-        return Release(
-            version=version,
-            notes=str(data.get("body") or "").strip(),
-            url=str(asset["browser_download_url"]),
-            size=int(asset.get("size") or 0),
-            page=str(data.get("html_url") or RELEASES_PAGE),
-        )
-    except Exception as exc:  # noqa: BLE001 - a failed check must never propagate
-        log.info("update check failed: %s", exc)
+    except ValueError as exc:
+        raise UpdateError("GitHub sent an unreadable answer") from exc
+    if not isinstance(data, dict):
+        raise UpdateError("GitHub sent an unexpected answer")
+    version = str(data.get("tag_name", "")).lstrip("vV")
+    if not version or not is_newer(version, current):
         return None
+    assets = data.get("assets")
+    asset = _pick_asset(assets if isinstance(assets, list) else [])
+    if not asset or not asset.get("browser_download_url"):
+        # Normal for a few minutes while the release workflow uploads its files.
+        log.info("update check: release %s has no Windows zip yet", version)
+        return None
+    try:
+        size = int(asset.get("size") or 0)
+    except (TypeError, ValueError):
+        size = 0
+    return Release(
+        version=version,
+        notes=str(data.get("body") or "").strip(),
+        url=str(asset["browser_download_url"]),
+        size=size,
+        page=str(data.get("html_url") or RELEASES_PAGE),
+    )
 
 
 # ------------------------------------------------------------------- download

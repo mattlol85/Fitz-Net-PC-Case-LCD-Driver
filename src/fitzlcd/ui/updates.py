@@ -50,6 +50,8 @@ class UpdateController(QObject):
         self.tray = tray
         self.available: Release | None = None
         self._busy = False
+        #: A click that arrived while a background check was running.
+        self._click_waiting = False
 
         self.checked.connect(self._on_checked, Qt.ConnectionType.QueuedConnection)
         self.progressed.connect(self._on_progress, Qt.ConnectionType.QueuedConnection)
@@ -78,25 +80,45 @@ class UpdateController(QObject):
         self._daily.start()
 
     def check_async(self, announce: bool = True) -> None:
+        """``announce=False`` is a click: always fresh, and it reports every outcome."""
+        clicked = not announce
         if self._busy:
+            # Never drop a click: run it fresh once the background check lands.
+            self._click_waiting = self._click_waiting or clicked
             return
         self._busy = True
 
         def work() -> None:
+            error = None
             try:
-                release = updater.check()
+                release = updater.check(fresh=clicked, strict=clicked)
+            except updater.UpdateError as exc:
+                release, error = None, str(exc)
             except Exception as exc:  # noqa: BLE001 - else _busy sticks and checks stop forever
                 log.warning("update check crashed: %s", exc)
-                release = None
-            self.checked.emit((release, announce))
+                release, error = None, str(exc)
+            self.checked.emit((release, announce, error))
 
         threading.Thread(target=work, daemon=True).start()
 
     # ----------------------------------------------------------------- results
 
     def _on_checked(self, payload) -> None:
-        release, announce = payload
+        release, announce, error = payload
         self._busy = False
+        if self._click_waiting:
+            self._click_waiting = False
+            self.check_async(announce=False)
+            return
+        if error is not None:
+            # Not a real answer, so the daily timer still owes us a check.
+            if not announce:
+                QMessageBox.warning(
+                    self.parent(),
+                    "Couldn't check for updates",
+                    f"FitzLCD couldn't reach GitHub to check for updates.\n\n{error}",
+                )
+            return
         self.config.update_last_check = time.time()
         self.config.save()
 
