@@ -127,6 +127,50 @@ class TestCheckFailureModes:
     def test_returns_none_instead_of_raising(self, response):
         assert updater.check(current="1.0.0", fetch=Recorder(response)) is None
 
+    @pytest.mark.parametrize(
+        "response",
+        [
+            (403, {"message": "rate limited"}),
+            (200, "not json at all"),
+            (200, ["a", "list"]),
+            (200, OSError("network down")),
+        ],
+    )
+    def test_strict_reports_the_failure_instead_of_claiming_no_update(self, response):
+        with pytest.raises(updater.UpdateError):
+            updater.check(current="1.0.0", fetch=Recorder(response), strict=True)
+
+    def test_strict_still_returns_none_when_genuinely_current(self):
+        assert updater.check(current="2.0.0", fetch=Recorder(), strict=True) is None
+
+    def test_odd_assets_are_skipped_not_fatal(self):
+        payload = dict(PAYLOAD)
+        payload["assets"] = ["junk", None, *PAYLOAD["assets"]]
+        assert updater.check(current="1.0.0", fetch=Recorder((200, payload))) is not None
+
+
+class TestFreshCheck:
+    """GitHub's edge caches releases/latest for about a minute after a publish."""
+
+    def test_a_fresh_check_bypasses_the_cache(self):
+        fetch = Recorder()
+        updater.check(current="1.0.0", fetch=fetch, fresh=True)
+        url, headers = fetch.calls[0]
+        assert url.startswith(updater.LATEST_URL + "?t=")
+        assert headers["Cache-Control"] == "no-cache"
+
+    def test_two_fresh_checks_never_share_a_cache_entry(self):
+        fetch = Recorder()
+        updater.check(current="1.0.0", fetch=fetch, fresh=True)
+        updater.check(current="1.0.0", fetch=fetch, fresh=True)
+        assert fetch.calls[0][0] != fetch.calls[1][0]
+
+    def test_a_scheduled_check_uses_the_plain_url(self):
+        fetch = Recorder()
+        updater.check(current="1.0.0", fetch=fetch)
+        assert fetch.calls[0][0] == updater.LATEST_URL
+        assert "Cache-Control" not in fetch.calls[0][1]
+
 
 class TestStage:
     def test_extracts_a_valid_build(self, tmp_path: Path):
